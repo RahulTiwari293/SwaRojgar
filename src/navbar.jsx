@@ -1,62 +1,111 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { IoSearch } from 'react-icons/io5';
 import logo from "./assets/logo.png";
 import ExploreDropdown from './navbarComponents/ExploreDropdown';
 import OrdersDropdown from './navbarComponents/OrderDropdown';
+import WalletButton from './components/WalletButton';
+import './navbar.css';
 
 function Navbar() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [ordersDropdownOpen, setOrdersDropdownOpen] = useState(false);
+  const [userType, setUserType] = useState(null);
   const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    const type = localStorage.getItem('userType');
+    setUserType(type);
+  }, [location]);
 
   const handleSearchClick = () => {
     navigate("/search");
   };
 
+  const isActive = (path) => {
+    return location.pathname === path;
+  };
+
   return (
-    <div className="pt-4 px-6 flex justify-between items-center">
-      {/* Logo */}
-      <div>
-        <img className="w-[10vw]" src={logo} alt="Logo" />
-      </div>
+    <div className="navbar-container">
+      <div className="navbar-content">
+        {/* Logo with Background */}
+        <div className="navbar-logo" onClick={() => navigate('/')}>
+          <img src={logo} alt="SwaRojgar Logo" />
+        </div>
 
-      {/* Search Bar */}
-      <div className="flex">
-        <input
-          type="text"
-          className="text-md border border-gray-300 p-2 w-[30vw] rounded-l-md focus:outline-none focus:border-purple-400"
-          placeholder="Search what you need"
-        />
-        <button 
-          className="p-2 bg-purple-400 text-white rounded-r-md"
-          onClick={handleSearchClick} // Update to handleSearchClick
-        >
-          <IoSearch className="text-xl w-[3vw] hover:scale-125 transition-all ease" />
-        </button>
-      </div>
+        {/* Search Bar */}
+        <div className="navbar-search">
+          <input
+            type="text"
+            placeholder="Search what you need"
+          />
+          <button onClick={handleSearchClick}>
+            <IoSearch className="text-xl" />
+          </button>
+        </div>
 
-      {/* Navigation Links */}
-      <div className="flex gap-8 font-medium text-lg text-gray-700">
-        {/* Explore Dropdown */}
-        <ExploreDropdown 
-          dropdownOpen={dropdownOpen} 
-          setDropdownOpen={setDropdownOpen} 
-        />
+        {/* Navigation Links */}
+        <div className="navbar-links">
+          {/* Browse Jobs */}
+          <button
+            className={isActive('/') ? 'active' : ''}
+            onClick={() => navigate('/')}
+          >
+            Browse Jobs
+          </button>
 
-        {/* Orders Dropdown */}
-        <OrdersDropdown 
-          ordersDropdownOpen={ordersDropdownOpen} 
-          setOrdersDropdownOpen={setOrdersDropdownOpen} 
-        />
+          {/* Role-Based Navigation */}
+          {userType === 'client' && (
+            <button
+              className={isActive('/customer-jobs') ? 'active' : ''}
+              onClick={() => navigate('/customer-jobs')}
+            >
+              💼 My Jobs
+            </button>
+          )}
 
-        {/* Profile Button */}
-        <button 
-          className="hover:text-purple-400 transition-colors" 
-          onClick={() => navigate("/profile")}
-        >
-          Profile
-        </button>
+          {userType === 'freelancer' && (
+            <>
+              <button
+                className={isActive('/freelancer-jobs') ? 'active' : ''}
+                onClick={() => navigate('/freelancer-jobs')}
+              >
+                💼 My Jobs
+              </button>
+              <button
+                className={isActive('/work-submission') ? 'active' : ''}
+                onClick={() => navigate('/work-submission')}
+              >
+                📤 Submit Work
+              </button>
+            </>
+          )}
+
+          {/* Explore Dropdown */}
+          <ExploreDropdown
+            dropdownOpen={dropdownOpen}
+            setDropdownOpen={setDropdownOpen}
+          />
+
+          {/* Orders Dropdown */}
+          <OrdersDropdown
+            ordersDropdownOpen={ordersDropdownOpen}
+            setOrdersDropdownOpen={setOrdersDropdownOpen}
+          />
+
+          {/* Profile Button */}
+          <button
+            className={isActive('/profile') ? 'active' : ''}
+            onClick={() => navigate("/profile")}
+          >
+            Profile
+          </button>
+
+          {/* Wallet Button */}
+          <WalletButton />
+        </div>
       </div>
     </div>
   );

@@ -1,0 +1,202 @@
+.payment-flow-diagram {
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    border-radius: 16px;
+    padding: 24px;
+    margin: 20px 0;
+}
+
+.payment-flow-diagram h4 {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 20px;
+    text-align: center;
+    color: #2d3748;
+}
+
+.flow-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+.flow-node {
+    background: white;
+    border-radius: 12px;
+    padding: 16px;
+    text-align: center;
+    min-width: 120px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.flow-node.customer {
+    border: 3px solid #3b82f6;
+}
+
+.flow-node.escrow {
+    border: 3px solid #8b5cf6;
+}
+
+.flow-node.freelancer {
+    border: 3px solid #10b981;
+}
+
+.flow-node.platform {
+    border: 3px solid #f59e0b;
+}
+
+.node-icon {
+    font-size: 32px;
+    margin-bottom: 8px;
+}
+
+.node-label {
+    font-weight: 700;
+    font-size: 14px;
+    color: #2d3748;
+    margin-bottom: 4px;
+}
+
+.node-sublabel {
+    font-size: 11px;
+    color: #718096;
+}
+
+.node-address {
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    color: #4a5568;
+    background: #f7fafc;
+    padding: 4px 8px;
+    border-radius: 4px;
+    margin-top: 8px;
+}
+
+.flow-arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    min-width: 80px;
+}
+
+.arrow-line {
+    width: 60px;
+    height: 3px;
+    background: #cbd5e0;
+    position: relative;
+}
+
+.arrow-line::after {
+    content: '▶';
+    position: absolute;
+    right: -8px;
+    top: -8px;
+    color: #cbd5e0;
+    font-size: 16px;
+}
+
+.arrow-line.success {
+    background: #10b981;
+}
+
+.arrow-line.success::after {
+    color: #10b981;
+}
+
+.arrow-line.fee {
+    background: #f59e0b;
+}
+
+.arrow-line.fee::after {
+    color: #f59e0b;
+}
+
+.arrow-label {
+    font-size: 11px;
+    color: #718096;
+    font-weight: 600;
+}
+
+.arrow-amount {
+    font-size: 13px;
+    font-weight: 700;
+    color: #2d3748;
+    background: white;
+    padding: 4px 8px;
+    border-radius: 6px;
+}
+
+.arrow-amount.success {
+    color: #10b981;
+    border: 2px solid #10b981;
+}
+
+.arrow-amount.fee {
+    color: #f59e0b;
+    border: 2px solid #f59e0b;
+}
+
+.flow-split {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.split-path {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.flow-info {
+    background: white;
+    border-radius: 12px;
+    padding: 16px;
+    border-left: 4px solid #667eea;
+}
+
+.flow-info p {
+    margin: 8px 0;
+    color: #2d3748;
+    font-size: 14px;
+}
+
+.flow-info ul {
+    margin: 12px 0;
+    padding-left: 24px;
+}
+
+.flow-info li {
+    margin: 6px 0;
+    color: #4a5568;
+}
+
+.flow-info strong {
+    color: #667eea;
+}
+
+.security-note {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid #e2e8f0;
+    font-size: 13px;
+    color: #10b981;
+    font-weight: 600;
+}
+
+@media (max-width: 768px) {
+    .flow-container {
+        flex-direction: column;
+    }
+
+    .flow-split {
+        width: 100%;
+    }
+
+    .split-path {
+        flex-direction: column;
+    }
+}

@@ -1,0 +1,20 @@
+{
+  "network": "sepolia",
+  "chainId": "11155111",
+  "deployer": "0xe96Caa87d062B098262Afd82F2f9eD39108aC8E6",
+  "timestamp": "2026-02-09T17:32:02.853Z",
+  "contracts": {
+    "SwaRojgarToken": {
+      "address": "0xfdA41C31D6630980352F590c753E9Ee5E2964906",
+      "name": "SwaRojgar Token",
+      "symbol": "SRT",
+      "totalSupply": "1000000000000000000000000",
+      "decimals": 18
+    },
+    "GigEscrow": {
+      "address": "0x5996AD515E407F1569278a1642cE9f259c1010eA",
+      "tokenAddress": "0xfdA41C31D6630980352F590c753E9Ee5E2964906",
+      "platformFee": "200"
+    }
+  }
+}

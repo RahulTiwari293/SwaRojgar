@@ -1,14 +1,50 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Pie } from "react-chartjs-2";
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from "chart.js";
-import pp1 from "./assets/person/1.jpeg";
 import { IoLogoInstagram } from "react-icons/io5";
 import { BiLogoLinkedin } from "react-icons/bi";
 import Navbar from "./navbar";
+import ProfilePhotoUpload from "./components/ProfilePhotoUpload";
+import WalletSection from "./components/blockchain/WalletSection";
+import axios from "axios";
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
 const Profile = () => {
+  const [userData, setUserData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [srtBalance, setSrtBalance] = useState('0');
+
+  useEffect(() => {
+    const fetchUserData = async () => {
+      try {
+        const userId = localStorage.getItem("userId");
+        if (!userId) {
+          console.error("No userId found in localStorage");
+          setLoading(false);
+          return;
+        }
+
+        const response = await axios.get(`http://localhost:5010/api/users/${userId}`);
+        setUserData(response.data);
+      } catch (error) {
+        console.error("Error fetching user data:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUserData();
+  }, []);
+
+  const handlePhotoUpdated = (photoPath) => {
+    setUserData(prev => ({ ...prev, profilePhoto: photoPath }));
+  };
+
+  const handleBalanceUpdate = (balance) => {
+    setSrtBalance(balance);
+  };
+
   const data = {
     labels: ["SEO", "Web Development", "Logo Design"],
     datasets: [
@@ -18,7 +54,7 @@ const Profile = () => {
         borderColor: ["#ffffff"],
 
         borderWidth: 2,
-        hoverOffset: 10, // When hovered, slices will offset by this value
+        hoverOffset: 10,
       },
     ],
   };
@@ -33,7 +69,7 @@ const Profile = () => {
           font: {
             size: 14,
           },
-          color: "#333", // Legend text color
+          color: "#333",
         },
       },
       tooltip: {
@@ -44,35 +80,97 @@ const Profile = () => {
             return `${label}: ${value}`;
           },
         },
-        backgroundColor: "rgba(0,0,0,0.7)", // Tooltip background color
+        backgroundColor: "rgba(0,0,0,0.7)",
         titleColor: "#fff",
         bodyColor: "#fff",
       },
     },
     animation: {
-      animateScale: true, // Scales in the chart from center
-      animateRotate: true, // Rotates the chart when loaded
+      animateScale: true,
+      animateRotate: true,
     },
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-100 p-10 flex items-center justify-center">
+        <div className="text-xl text-gray-600">Loading profile...</div>
+      </div>
+    );
+  }
+
   return (
-    
+
     <div className="min-h-screen bg-gray-100 p-10">
       <div className="p-6 mx-auto bg-white shadow-md rounded-lg transition duration-500 hover:shadow-xl ">
         <div className="flex gap-20 items-center justify-center">
           <div className="w-1/4 h-screen p-4 bg-gradient-to-r from-[#cd97e1] to-white-300 text-white rounded-lg">
             <div className="text-center mb-4">
-              <img
-                src={pp1}
-                alt="Profile"
-                className="w-40 h-40 rounded-full my-10 mx-auto"
-              />
-              <h2 className="mt-4 text-3xl font-bold text-gray-700">Mr. Rahul Tiwari</h2>
+              <div className="flex justify-center my-10">
+                <ProfilePhotoUpload
+                  userId={userData?._id}
+                  currentPhoto={userData?.profilePhoto ? `http://localhost:5010/${userData.profilePhoto}` : null}
+                  onPhotoUpdated={handlePhotoUpdated}
+                />
+              </div>
+              <h2 className="mt-4 text-3xl font-bold text-gray-700">
+                {userData ? `${userData.firstName} ${userData.lastName}` : "User Name"}
+              </h2>
             </div>
+
+            {/* Wallet Section */}
+            <div className="mb-6">
+              <WalletSection onBalanceUpdate={handleBalanceUpdate} />
+
+              {/* Quick Actions */}
+              <div style={{ marginTop: '2rem', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                <button
+                  onClick={() => window.location.href = '/freelancer-jobs'}
+                  style={{
+                    flex: '1',
+                    minWidth: '180px',
+                    padding: '0.9rem 1.2rem',
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '0.75rem',
+                    fontSize: '0.95rem',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    transition: 'all 0.3s ease'
+                  }}
+                  onMouseOver={(e) => e.target.style.transform = 'translateY(-2px)'}
+                  onMouseOut={(e) => e.target.style.transform = 'translateY(0)'}
+                >
+                  💼 My Jobs
+                </button>
+                <button
+                  onClick={() => window.location.href = '/work-submission'}
+                  style={{
+                    flex: '1',
+                    minWidth: '180px',
+                    padding: '0.9rem 1.2rem',
+                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '0.75rem',
+                    fontSize: '0.95rem',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    transition: 'all 0.3s ease'
+                  }}
+                  onMouseOver={(e) => e.target.style.transform = 'translateY(-2px)'}
+                  onMouseOut={(e) => e.target.style.transform = 'translateY(0)'}
+                >
+                  📤 Submit Work
+                </button>
+              </div>
+            </div>
+
             <div className="text-sm p-[2vw] pt-4 text-gray-700">
               <p className="mb-5">123 Rajiv Chowk, Delhi</p>
-              <p className="mb-5">Rahul.tiwari@gmail.com</p>
-              <p className="mb-5">Cell: +91 82989349</p>
+              <p className="mb-5">{userData?.email || "email@example.com"}</p>
+              <p className="mb-5">Cell: {userData?.phoneNumber || "+91 XXXXXXXXXX"}</p>
             </div>
             <div>
               <h5 className="font-semibold text-3xl pl-[2vw] text-gray-700">Skills</h5>
@@ -142,7 +240,11 @@ const Profile = () => {
             </div>
 
             <div className="bg-gray-100 p-4 rounded-lg shadow">
-              <h4 className="text-lg font-semibold">22,099Rs.</h4>
+              <h4 className="text-lg font-semibold">
+                {parseFloat(srtBalance) > 0
+                  ? `${parseFloat(srtBalance).toFixed(2)} SRT`
+                  : '0 SRT'}
+              </h4>
               <p className="text-sm text-gray-500">Total Earnings</p>
             </div>
           </div>

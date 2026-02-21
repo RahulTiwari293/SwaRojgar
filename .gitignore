@@ -22,3 +22,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Backend
+backend/node_modules
+backend/.env
+backend/uploads
+
+# Keep frontend .env since user specified it previously
+!.env

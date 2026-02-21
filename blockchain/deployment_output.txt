@@ -1,0 +1,8 @@
+
+> blockchain@1.0.0 deploy:sepolia
+> hardhat run scripts/deploy.js --network sepolia
+
+[dotenv@17.2.4] injecting env (9) from .env -- tip: 🔑 add access controls to secrets: https://dotenvx.com/ops
+Error HHE600: Script "scripts/deploy.js" doesn't exist
+
+For more info go to https://hardhat.org/HHE600 or run Hardhat with --show-stack-traces

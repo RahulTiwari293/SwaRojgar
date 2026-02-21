@@ -20,10 +20,19 @@ function Login() {
         },
         body: JSON.stringify({ email, password }),
       });
-  
+
       const data = await response.json();
       if (response.ok) {
         console.log("Login successful:", data);
+
+        // Save userId to localStorage for creating posts
+        if (data.userId) {
+          localStorage.setItem("userId", data.userId);
+        }
+        if (data.userType) {
+          localStorage.setItem("userType", data.userType);
+        }
+
         if (data.userType === 'client') {
           navigate("/client-dashboard");
         } else if (data.userType === 'freelancer') {
@@ -38,7 +47,7 @@ function Login() {
       alert("An error occurred during login.");
     }
   };
-  
+
 
   return (
     <div className="m-[5vw] ml-[10vw] w-[90vw] max-w-[1200px] flex justify-center items-center border-2 p-[2vw] rounded-3xl bg-gradient-to-r from-purple-300 to-blue-300 shadow-lg transition-all duration-500 ease-in-out transform ">
@@ -93,7 +102,7 @@ function Login() {
           </button>
         </div>
       </div>
-      
+
     </div>
   );
 }

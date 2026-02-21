@@ -36,6 +36,12 @@ function SignUp() {
             if (response.ok) {
                 console.log("User registered:", data);
 
+                // Save userId and userType to localStorage for creating posts
+                if (data.userId) {
+                    localStorage.setItem("userId", data.userId);
+                }
+                localStorage.setItem("userType", formData.userType);
+
                 // Navigate to the correct dashboard based on userType
                 if (formData.userType === "client") {
                     navigate("/client-dashboard");
@@ -45,9 +51,11 @@ function SignUp() {
                 }
             } else {
                 console.error("Registration error:", data);
+                alert("Registration failed: " + (data.message || "Unknown error"));
             }
         } catch (error) {
             console.error("Error:", error);
+            alert("An error occurred during registration.");
         }
     };
 
@@ -107,7 +115,7 @@ function SignUp() {
                             onChange={handleChange}
                             className="w-full md:w-3/4 mt-4 p-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all duration-300"
                         />
-                        
+
                         {/* Radio buttons for user type selection */}
                         <div className="flex items-center gap-4 mt-4 w-full md:w-3/4">
                             <label className="flex items-center">
