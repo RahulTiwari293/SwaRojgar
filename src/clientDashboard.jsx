@@ -1,8 +1,8 @@
 import React from "react";
-import Navbar from "./navbar";
-import Leftbar from "./Leftbar";
-import Postbar from "./postbarClient";
-import Rightbar from "./rightbarClient";
+import Navbar from "./navbar.jsx";
+import Leftbar from "./leftbar.jsx";
+import Postbar from "./postbarClient.jsx";
+import Rightbar from "./rightbarClient.jsx";
 
 function ClientDashboard() {
   return (
