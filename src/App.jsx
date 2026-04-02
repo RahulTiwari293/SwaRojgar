@@ -13,8 +13,9 @@ import ClientProfile from "./clientProfile.jsx";
 import ClientDashboard from "./clientDashboard.jsx";
 import SearchPage from "./Search.jsx";
 import WorkSubmission from "./pages/WorkSubmission.jsx";
-import CustomerJobs from "./pages/CustomerJobs.jsx";
-import FreelancerJobs from "./pages/FreelancerJobs.jsx";
+import CustomerJobs from "./pages/CustomerJobs.jsx";       // ← New client dashboard
+import FreelancerJobs from "./pages/FreelancerJobs.jsx";   // ← New freelancer dashboard
+
 
 function App() {
   return (

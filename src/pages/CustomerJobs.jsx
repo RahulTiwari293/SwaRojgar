@@ -1,315 +1,511 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
-import Navbar from '../navbar';
-import Breadcrumbs from '../components/Breadcrumbs';
-import ProofViewer from '../components/blockchain/ProofViewer';
-import { approveWorkOnChain } from '../blockchain/contractInteractions';
-import './CustomerJobs.css';
+/**
+ * CustomerJobs.jsx — Client (Buyer) Dashboard
+ *
+ * Sections:
+ *  - Animated hero banner with client image
+ *  - Live SRT stats (spent, locked, active gigs)
+ *  - My posted gigs with Approve / Release / Dispute actions
+ *  - Create new gig modal (posts to backend + locks SRT)
+ *  - Proof review panel (view IPFS proof before approving)
+ *  - All buttons wired to live contract + backend
+ */
 
-function CustomerJobs() {
-    const [jobs, setJobs] = useState([]);
-    const [loading, setLoading] = useState(false);
-    const [activeTab, setActiveTab] = useState('all'); // all, open, assigned, review, completed
-    const [selectedJob, setSelectedJob] = useState(null);
-    const [proofData, setProofData] = useState(null);
-    const [processing, setProcessing] = useState(false);
-    const [error, setError] = useState('');
-    const [success, setSuccess] = useState('');
-    const navigate = useNavigate();
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import { ethers } from "ethers";
+import { useNavigate } from "react-router-dom";
+import { useGig, pushToast } from "./context/GigContext";
+import { SkeletonGigCard } from "./components/Skeleton";
+import Navbar from "./navbar";
+import clientImg from "./assets/client_dashboard_hero.png";
 
-    useEffect(() => {
-        fetchJobs();
-    }, []);
+const BACKEND  = import.meta.env.VITE_BACKEND_URL || "http://localhost:5010";
+const ESCROW_ADDR = import.meta.env.VITE_ESCROW_CONTRACT_ADDRESS || "0x5996AD515E407F1569278a1642cE9f259c1010eA";
+const TOKEN_ADDR  = import.meta.env.VITE_TOKEN_CONTRACT_ADDRESS  || "0xfdA41C31D6630980352F590c753E9Ee5E2964906";
 
-    const fetchJobs = async () => {
-        setLoading(true);
-        try {
-            const userId = localStorage.getItem('userId');
-            const response = await axios.get(
-                `http://localhost:5010/api/blockchain/gigs/user/${userId}?role=customer`
-            );
-            setJobs(response.data.gigs || []);
-        } catch (err) {
-            console.error('Error fetching jobs:', err);
-            setError('Failed to load your jobs');
-        } finally {
-            setLoading(false);
-        }
-    };
+const TOKEN_ABI = [
+  "function balanceOf(address) view returns(uint256)",
+  "function decimals() view returns(uint8)",
+  "function approve(address spender, uint256 amount) returns(bool)",
+];
+const ESCROW_ABI = [
+  "function createGig(string gigId, uint256 amount, uint256 deadline, string metaEvidenceUri) external",
+  "function approveWork(string gigId) external",
+  "function raiseDisputeAI(string gigId) external",
+  "function getGig(string gigId) view returns (tuple(string gigId, uint256 gigNumber, address client, address freelancer, uint256 amount, uint8 status, uint256 createdAt, uint256 deadline, string proofIpfsHash, string metaEvidenceUri, string aiProposalUri, bool clientAcceptsAI, bool freelancerAcceptsAI, uint256 metaEvidenceID, uint256 klerosDisputeId, bool hasKlerosDispute, uint256 klerosRuling))",
+];
 
-    const fetchProof = async (gigId) => {
-        try {
-            const response = await axios.get(
-                `http://localhost:5010/api/blockchain/gig/${gigId}/proof`
-            );
-            setProofData(response.data);
-        } catch (err) {
-            console.error('Error fetching proof:', err);
-            setProofData(null);
-        }
-    };
+const STATUS_MAP = {0:"OPEN",1:"ASSIGNED",2:"PROOF_SUBMITTED",3:"DISPUTED_AI",4:"DISPUTED_KLEROS",5:"DISPUTED_HUMAN",6:"COMPLETED",7:"REFUNDED"};
+const STATUS_STYLE = {
+  OPEN:            "bg-blue-500/15 border-blue-500/30 text-blue-300",
+  ASSIGNED:        "bg-yellow-500/15 border-yellow-500/30 text-yellow-300",
+  PROOF_SUBMITTED: "bg-purple-500/15 border-purple-500/30 text-purple-300",
+  COMPLETED:       "bg-emerald-500/15 border-emerald-500/30 text-emerald-300",
+  DISPUTED_AI:     "bg-orange-500/15 border-orange-500/30 text-orange-300",
+  DISPUTED_KLEROS: "bg-red-500/15 border-red-500/30 text-red-300",
+  DISPUTED_HUMAN:  "bg-pink-500/15 border-pink-500/30 text-pink-300",
+  REFUNDED:        "bg-slate-500/15 border-slate-500/30 text-slate-300",
+};
 
-    const handleViewProof = (job) => {
-        setSelectedJob(job);
-        fetchProof(job.gigId);
-    };
-
-    const handleApprove = async () => {
-        if (!selectedJob) return;
-
-        setProcessing(true);
-        setError('');
-        setSuccess('');
-
-        try {
-            // Approve work on blockchain (releases payment)
-            const txHash = await approveWorkOnChain(selectedJob.gigId);
-
-            // Update database
-            await axios.post(
-                `http://localhost:5010/api/blockchain/gig/${selectedJob.gigId}/approve`,
-                { txHash }
-            );
-
-            setSuccess('✅ Work approved! Payment released to freelancer.');
-
-            // Refresh jobs
-            setTimeout(() => {
-                fetchJobs();
-                setSelectedJob(null);
-                setProofData(null);
-                setSuccess('');
-            }, 3000);
-
-        } catch (err) {
-            console.error('Error approving work:', err);
-            setError(err.message || 'Failed to approve work');
-        } finally {
-            setProcessing(false);
-        }
-    };
-
-    const filteredJobs = jobs.filter(job => {
-        if (activeTab === 'all') return true;
-        if (activeTab === 'open') return job.status === 'OPEN';
-        if (activeTab === 'assigned') return job.status === 'ASSIGNED';
-        if (activeTab === 'review') return job.status === 'PROOF_SUBMITTED';
-        if (activeTab === 'completed') return job.status === 'COMPLETED';
-        return true;
-    });
-
-    const getStatusBadge = (status) => {
-        const badges = {
-            'OPEN': { icon: '🟢', text: 'Open', class: 'status-open' },
-            'ASSIGNED': { icon: '🔄', text: 'In Progress', class: 'status-assigned' },
-            'PROOF_SUBMITTED': { icon: '📋', text: 'Review Needed', class: 'status-review' },
-            'COMPLETED': { icon: '✅', text: 'Completed', class: 'status-completed' },
-            'DISPUTED': { icon: '⚠️', text: 'Disputed', class: 'status-disputed' }
-        };
-        return badges[status] || badges['OPEN'];
-    };
-
-    if (loading) {
-        return (
-            <div className="customer-jobs-container">
-                <div className="loading-state">
-                    <div className="spinner"></div>
-                    <p>Loading your jobs...</p>
-                </div>
-            </div>
-        );
-    }
-
-    const breadcrumbItems = [
-        { label: 'Home', path: '/' },
-        { label: 'My Jobs', path: '/customer-jobs' }
-    ];
-
-    return (
-        <div className="customer-jobs-page">
-            <Navbar />
-            <Breadcrumbs items={breadcrumbItems} />
-            <div className="page-header">
-                <h1>💼 My Posted Jobs</h1>
-                <p>Manage your job postings and review submitted work</p>
-            </div>
-
-            {/* Tabs */}
-            <div className="tabs">
-                <button
-                    className={`tab ${activeTab === 'all' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('all')}
-                >
-                    All Jobs ({jobs.length})
-                </button>
-                <button
-                    className={`tab ${activeTab === 'open' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('open')}
-                >
-                    🟢 Open ({jobs.filter(j => j.status === 'OPEN').length})
-                </button>
-                <button
-                    className={`tab ${activeTab === 'assigned' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('assigned')}
-                >
-                    🔄 In Progress ({jobs.filter(j => j.status === 'ASSIGNED').length})
-                </button>
-                <button
-                    className={`tab ${activeTab === 'review' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('review')}
-                >
-                    📋 Review ({jobs.filter(j => j.status === 'PROOF_SUBMITTED').length})
-                </button>
-                <button
-                    className={`tab ${activeTab === 'completed' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('completed')}
-                >
-                    ✅ Completed ({jobs.filter(j => j.status === 'COMPLETED').length})
-                </button>
-            </div>
-
-            {/* Jobs Grid */}
-            {filteredJobs.length === 0 ? (
-                <div className="empty-state">
-                    <div className="empty-icon">📭</div>
-                    <h3>No Jobs Found</h3>
-                    <p>You haven't posted any jobs in this category yet.</p>
-                    <button onClick={() => navigate('/')} className="btn-primary">
-                        Post a Job
-                    </button>
-                </div>
-            ) : (
-                <div className="jobs-grid">
-                    {filteredJobs.map(job => {
-                        const badge = getStatusBadge(job.status);
-                        return (
-                            <div key={job._id} className="job-card">
-                                <div className="job-header">
-                                    <h3>{job.title}</h3>
-                                    <span className={`status-badge ${badge.class}`}>
-                                        {badge.icon} {badge.text}
-                                    </span>
-                                </div>
-
-                                <p className="job-description">{job.description}</p>
-
-                                <div className="job-meta">
-                                    <div className="meta-item">
-                                        <span className="label">💰 Payment:</span>
-                                        <span className="value">{job.amount} SRT</span>
-                                    </div>
-                                    {job.deadline && (
-                                        <div className="meta-item">
-                                            <span className="label">📅 Deadline:</span>
-                                            <span className="value">
-                                                {new Date(job.deadline).toLocaleDateString()}
-                                            </span>
-                                        </div>
-                                    )}
-                                    {job.freelancerId && (
-                                        <div className="meta-item">
-                                            <span className="label">👤 Freelancer:</span>
-                                            <span className="value">
-                                                {job.freelancerId.firstName} {job.freelancerId.lastName}
-                                            </span>
-                                        </div>
-                                    )}
-                                </div>
-
-                                <div className="job-actions">
-                                    {job.status === 'PROOF_SUBMITTED' && (
-                                        <button
-                                            onClick={() => handleViewProof(job)}
-                                            className="btn-review"
-                                        >
-                                            👁️ Review Work
-                                        </button>
-                                    )}
-                                    {job.status === 'COMPLETED' && (
-                                        <button
-                                            onClick={() => handleViewProof(job)}
-                                            className="btn-view"
-                                        >
-                                            📄 View Details
-                                        </button>
-                                    )}
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-            )}
-
-            {/* Proof Review Modal */}
-            {selectedJob && (
-                <div className="modal-overlay" onClick={() => setSelectedJob(null)}>
-                    <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-                        <button className="close-btn" onClick={() => setSelectedJob(null)}>
-                            ✕
-                        </button>
-
-                        <h2>📋 Review Submitted Work</h2>
-
-                        <div className="job-details">
-                            <h3>{selectedJob.title}</h3>
-                            <p>{selectedJob.description}</p>
-                            <div className="detail-row">
-                                <span>💰 Payment: {selectedJob.amount} SRT</span>
-                                <span>👤 Freelancer: {selectedJob.freelancerId?.firstName} {selectedJob.freelancerId?.lastName}</span>
-                            </div>
-                        </div>
-
-                        {proofData ? (
-                            <div className="proof-section">
-                                <h4>Submitted Proof</h4>
-                                <p className="proof-description">{proofData.metadata?.description}</p>
-
-                                <div className="proof-files">
-                                    <p><strong>IPFS Hash:</strong> {proofData.ipfsHash}</p>
-                                    <a
-                                        href={proofData.ipfsUrl}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="btn-view-ipfs"
-                                    >
-                                        🔗 View Files on IPFS
-                                    </a>
-                                </div>
-
-                                {selectedJob.status === 'PROOF_SUBMITTED' && (
-                                    <div className="approval-actions">
-                                        {error && <div className="alert alert-error">⚠️ {error}</div>}
-                                        {success && <div className="alert alert-success">{success}</div>}
-
-                                        <button
-                                            onClick={handleApprove}
-                                            disabled={processing}
-                                            className="btn-approve"
-                                        >
-                                            {processing ? (
-                                                <>
-                                                    <span className="spinner-small"></span>
-                                                    Processing...
-                                                </>
-                                            ) : (
-                                                '✅ Approve & Release Payment'
-                                            )}
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-                        ) : (
-                            <div className="loading-proof">
-                                <div className="spinner-small"></div>
-                                <p>Loading proof...</p>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            )}
-        </div>
-    );
+// ─── Hooks & helpers ──────────────────────────────────────────────────────────
+function useFade(delay = 0) {
+  const ref = useRef(null);
+  const [vis, setVis] = useState(false);
+  useEffect(() => {
+    const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) { setVis(true); obs.disconnect(); }}, { threshold: 0.08 });
+    if (ref.current) obs.observe(ref.current);
+    return () => obs.disconnect();
+  }, []);
+  return [ref, vis, delay];
 }
 
-export default CustomerJobs;
+function Counter({ target }) {
+  const [v, setV] = useState(0);
+  useEffect(() => {
+    const n = parseFloat(target)||0; let cur=0; const s=n/40;
+    const t = setInterval(()=>{ cur+=s; if(cur>=n){setV(n);clearInterval(t);}else setV(cur);},30);
+    return ()=>clearInterval(t);
+  },[target]);
+  return <span>{v.toFixed(2)}</span>;
+}
+
+function StatusBadge({ s }) {
+  return <span className={`px-2.5 py-1 text-xs font-bold rounded-full border ${STATUS_STYLE[s]||STATUS_STYLE.OPEN}`}>{s?.replace(/_/g," ")}</span>;
+}
+
+// ─── Gig Card ─────────────────────────────────────────────────────────────────
+function GigCard({ gig, onApprove, onDispute, onView, idx }) {
+  const [ref, vis] = useFade(idx*80);
+  const [showProof, setShowProof] = useState(false);
+  const isSettled  = ["COMPLETED","REFUNDED"].includes(gig.status);
+  const hasProof   = Boolean(gig.proofIpfsHash);
+  const canApprove = gig.status === "PROOF_SUBMITTED";
+  const canDispute = gig.status === "PROOF_SUBMITTED";
+
+  return (
+    <div ref={ref} style={{transitionDelay:`${idx*80}ms`}}
+      className={`group rounded-2xl border border-white/8 bg-white/4 hover:bg-white/6 hover:border-violet-500/25 backdrop-blur-sm p-5 transition-all duration-500 hover:scale-[1.01] hover:shadow-xl hover:shadow-violet-500/8
+        ${vis?"opacity-100 translate-y-0":"opacity-0 translate-y-6"}`}>
+
+      {/* Header */}
+      <div className="flex items-start justify-between gap-3 mb-3 flex-wrap">
+        <div>
+          {gig.gigNumber && <p className="text-violet-400 text-xs font-bold mb-1">Gig #{gig.gigNumber}</p>}
+          <h3 className="text-white font-semibold text-base group-hover:text-violet-200 transition-colors">{gig.title || "Untitled"}</h3>
+          <p className="text-white/35 text-xs font-mono mt-0.5">{(gig.gigId||gig._id)?.slice(0,22)}...</p>
+        </div>
+        <div className="flex flex-col items-end gap-1.5">
+          <StatusBadge s={gig.status}/>
+          <span className="text-violet-400 font-bold text-lg">{gig.amount||gig.srtAmount} SRT</span>
+        </div>
+      </div>
+
+      {gig.content && <p className="text-white/35 text-xs mb-3 line-clamp-2">{gig.content}</p>}
+
+      {/* Assignee */}
+      {gig.assignedFreelancer && (
+        <div className="flex items-center gap-2 mb-3 p-2.5 rounded-xl bg-white/4 border border-white/6">
+          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-cyan-500 to-violet-500 flex items-center justify-center text-xs font-bold text-white">
+            {gig.assignedFreelancer?.firstName?.[0] || "F"}
+          </div>
+          <div>
+            <p className="text-white/70 text-xs font-semibold">
+              {gig.assignedFreelancer?.firstName} {gig.assignedFreelancer?.lastName}
+            </p>
+            <p className="text-white/30 text-[10px]">Assigned freelancer</p>
+          </div>
+        </div>
+      )}
+
+      {/* Locked indicator */}
+      {!isSettled && (
+        <div className="flex items-center gap-2 mb-3 py-1.5 px-3 rounded-lg bg-amber-500/8 border border-amber-500/15">
+          <span className="text-amber-400 text-xs">🔒</span>
+          <span className="text-amber-300/70 text-xs">{gig.amount||gig.srtAmount} SRT locked in escrow</span>
+        </div>
+      )}
+      {gig.status === "COMPLETED" && (
+        <div className="flex items-center gap-2 mb-3 py-1.5 px-3 rounded-lg bg-emerald-500/8 border border-emerald-500/15">
+          <span className="text-xs">✅</span>
+          <span className="text-emerald-300/80 text-xs font-semibold">Payment released to freelancer</span>
+        </div>
+      )}
+
+      {/* Proof viewer */}
+      {hasProof && (
+        <div className="mb-3">
+          <button onClick={() => setShowProof(v=>!v)}
+            className="flex items-center gap-2 text-violet-400 hover:text-violet-300 text-xs font-semibold transition-colors">
+            📎 {showProof ? "Hide" : "View"} submitted proof
+            <span className={`transition-transform duration-200 ${showProof?"-rotate-90":"rotate-0"}`}>▶</span>
+          </button>
+          {showProof && (
+            <div className="mt-2 p-3 rounded-xl bg-violet-500/8 border border-violet-500/15">
+              <p className="text-white/50 text-xs mb-2">IPFS proof hash:</p>
+              <a href={`https://gateway.pinata.cloud/ipfs/${gig.proofIpfsHash}`} target="_blank" rel="noopener noreferrer"
+                className="text-violet-400 text-xs font-mono break-all hover:underline">
+                {gig.proofIpfsHash}
+              </a>
+              <p className="text-white/30 text-[10px] mt-1">{gig.proofDescription}</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Divider */}
+      <div className="h-px bg-white/5 mb-3"/>
+
+      {/* Actions */}
+      <div className="flex gap-2 flex-wrap">
+        {canApprove && (
+          <button onClick={() => onApprove(gig.gigId||gig._id)}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white text-xs font-bold transition-all hover:scale-105 shadow-lg shadow-emerald-500/20">
+            ✅ Approve & Release SRT
+          </button>
+        )}
+        {canDispute && (
+          <button onClick={() => onDispute(gig.gigId||gig._id)}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-orange-600/70 hover:bg-orange-500 text-white text-xs font-bold transition-all hover:scale-105">
+            ⚠️ Raise Dispute
+          </button>
+        )}
+        <button onClick={() => onView(gig.gigId||gig._id)}
+          className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/6 hover:bg-white/10 text-white/50 hover:text-white text-xs font-semibold transition-all border border-white/8">
+          ⚖️ Resolution
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Create Gig Modal ─────────────────────────────────────────────────────────
+function CreateGigModal({ onClose, onCreated, srtBalance }) {
+  const { wallet, runTx } = useGig();
+  const userId = localStorage.getItem("userId");
+  const token  = localStorage.getItem("token");
+  const [form, setForm] = useState({ title:"", content:"", srtAmount:"", deadline:"" });
+  const [step, setStep]  = useState(1); // 1=details, 2=locking
+  const [saving, setSaving] = useState(false);
+  const set = (k,v) => setForm(f=>({...f,[k]:v}));
+
+  const handleCreate = async () => {
+    if (!form.title || !form.content || !form.srtAmount) {
+      pushToast("Please fill in all required fields","warning"); return;
+    }
+    if (!wallet.signer) { pushToast("Connect your wallet first","warning"); return; }
+    if (parseFloat(form.srtAmount) > parseFloat(srtBalance)) {
+      pushToast(`Insufficient SRT balance (${srtBalance} SRT)`,"error"); return;
+    }
+    setSaving(true); setStep(2);
+    try {
+      // 1. Save to backend
+      const res  = await fetch(`${BACKEND}/api/posts`, {
+        method:"POST", headers:{"Content-Type":"application/json", Authorization:`Bearer ${token}`},
+        body: JSON.stringify({ userId, title:form.title, content:form.content, userType:"client", postType:"job",
+          srtAmount: parseFloat(form.srtAmount), deadline: form.deadline ? Math.floor(new Date(form.deadline)/1000) : 0,
+          walletAddress: wallet.address })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      const gigId = data.post._id;
+
+      // 2. Approve token spend
+      pushToast("Step 1/2 — Approving SRT transfer...","loading",20000);
+      const tokenC  = new ethers.Contract(TOKEN_ADDR, TOKEN_ABI, wallet.signer);
+      const dec     = await tokenC.decimals();
+      const rawAmt  = ethers.parseUnits(form.srtAmount, dec);
+      const approTx = await tokenC.approve(ESCROW_ADDR, rawAmt);
+      await approTx.wait();
+      pushToast("✅ Approval done","success");
+
+      // 3. Lock in escrow
+      const metaUri = `/ipfs/QmPlaceholder_${gigId}`;
+      const receipt = await runTx(() => {
+        const esc = new ethers.Contract(ESCROW_ADDR, ESCROW_ABI, wallet.signer);
+        const dl  = form.deadline ? Math.floor(new Date(form.deadline)/1000) : 0;
+        return esc.createGig(gigId, rawAmt, dl, metaUri);
+      }, "Locking SRT in escrow...");
+
+      if (receipt) {
+        pushToast(`🔒 ${form.srtAmount} SRT locked! Gig #${data.post.gigNumber || "—"} is live.`,"success",6000);
+        onCreated();
+        onClose();
+      }
+    } catch(e) { pushToast(e.reason||e.message,"error"); setStep(1); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose}/>
+      <div className="relative w-full max-w-lg rounded-3xl border border-white/10 bg-slate-900/95 backdrop-blur-xl p-7 shadow-2xl space-y-5">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-white font-black text-xl">➕ Post a New Gig</h2>
+            <p className="text-white/40 text-xs mt-0.5">Funds lock automatically when you submit</p>
+          </div>
+          <button onClick={onClose} className="text-white/30 hover:text-white text-2xl transition-colors leading-none">✕</button>
+        </div>
+
+        {/* Step indicator */}
+        <div className="flex items-center gap-2">
+          {[1,2].map(s => (
+            <React.Fragment key={s}>
+              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all
+                ${step >= s ? "bg-gradient-to-br from-violet-600 to-cyan-600 text-white" : "bg-white/8 text-white/30"}`}>{s}</div>
+              {s<2 && <div className={`flex-1 h-0.5 rounded transition-all ${step>s ? "bg-gradient-to-r from-violet-500 to-cyan-500" : "bg-white/10"}`}/>}
+            </React.Fragment>
+          ))}
+        </div>
+
+        {step === 1 && (
+          <div className="space-y-4">
+            <Field label="Gig Title *" value={form.title} onChange={v=>set("title",v)} placeholder="e.g. Build a React dashboard" />
+            <div>
+              <label className="text-white/50 text-xs mb-1.5 block">Description *</label>
+              <textarea value={form.content} onChange={e=>set("content",e.target.value)} rows={3}
+                placeholder="Describe the work in detail..."
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-white/25 focus:outline-none focus:border-violet-500/60 resize-none transition-colors"/>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-white/50 text-xs mb-1.5 block">SRT Amount *</label>
+                <input type="number" value={form.srtAmount} onChange={e=>set("srtAmount",e.target.value)} placeholder="e.g. 100"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-white/25 focus:outline-none focus:border-violet-500/60 transition-colors"/>
+                <p className="text-white/25 text-[10px] mt-1">Balance: {parseFloat(srtBalance||"0").toFixed(2)} SRT</p>
+              </div>
+              <div>
+                <label className="text-white/50 text-xs mb-1.5 block">Deadline (optional)</label>
+                <input type="date" value={form.deadline} onChange={e=>set("deadline",e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white/80 focus:outline-none focus:border-violet-500/60 transition-colors"/>
+              </div>
+            </div>
+
+            <div className="bg-amber-500/8 border border-amber-500/20 rounded-xl p-3 text-xs text-amber-300/80">
+              <strong>2 MetaMask confirmations:</strong> First approve the spend, then lock the tokens. Funds release only on your approval.
+            </div>
+          </div>
+        )}
+
+        {step === 2 && (
+          <div className="flex flex-col items-center py-6 gap-4">
+            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-violet-600 to-cyan-600 flex items-center justify-center text-3xl animate-pulse">🔒</div>
+            <p className="text-white font-bold">Locking SRT in escrow...</p>
+            <p className="text-white/40 text-sm text-center">Check MetaMask for confirmation prompts. Don't close this window.</p>
+          </div>
+        )}
+
+        {step === 1 && (
+          <div className="flex gap-3">
+            <button onClick={onClose} className="flex-1 py-3 rounded-xl bg-white/6 hover:bg-white/10 text-white/60 font-semibold text-sm transition-all border border-white/8">Cancel</button>
+            <button onClick={handleCreate} disabled={saving}
+              className="flex-1 py-3 rounded-xl bg-gradient-to-r from-violet-600 to-cyan-600 hover:from-violet-500 hover:to-cyan-500 text-white font-bold text-sm transition-all disabled:opacity-40 hover:scale-105 shadow-lg shadow-violet-500/20">
+              🔒 Post & Lock SRT
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, value, onChange, placeholder }) {
+  return (
+    <div>
+      <label className="text-white/50 text-xs mb-1.5 block">{label}</label>
+      <input value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder}
+        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-white/25 focus:outline-none focus:border-violet-500/60 transition-colors"/>
+    </div>
+  );
+}
+
+// ─── MAIN ─────────────────────────────────────────────────────────────────────
+export default function CustomerJobs() {
+  const navigate = useNavigate();
+  const { wallet, runTx } = useGig();
+  const userId = localStorage.getItem("userId");
+  const token  = localStorage.getItem("token");
+
+  const [srtBal,  setSrtBal]  = useState("0");
+  const [gigs,    setGigs]    = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [tab,     setTab]     = useState("active");
+  const [showCreate, setShowCreate] = useState(false);
+  const [user,    setUser]    = useState(null);
+  const [heroLoaded, setHeroLoaded] = useState(false);
+
+  const activeGigs    = gigs.filter(g => !["COMPLETED","REFUNDED"].includes(g.status));
+  const completedGigs = gigs.filter(g => g.status === "COMPLETED");
+  const lockedSRT     = activeGigs.reduce((s,g)=>s+parseFloat(g.amount||g.srtAmount||0),0);
+  const spentSRT      = completedGigs.reduce((s,g)=>s+parseFloat(g.amount||g.srtAmount||0),0);
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      if (userId) {
+        const u = await fetch(`${BACKEND}/api/users/${userId}`,{headers:{Authorization:`Bearer ${token}`}});
+        if (u.ok) setUser(await u.json());
+      }
+      if (wallet.signer && wallet.address) {
+        const t   = new ethers.Contract(TOKEN_ADDR, TOKEN_ABI, wallet.signer);
+        const [r, d] = await Promise.all([t.balanceOf(wallet.address), t.decimals()]);
+        setSrtBal(ethers.formatUnits(r, d));
+      }
+      const res  = await fetch(`${BACKEND}/api/jobs/customer/${userId}`, {headers:{Authorization:`Bearer ${token}`}});
+      const data = await res.json();
+      const jobs = Array.isArray(data) ? data : [];
+
+      if (wallet.signer) {
+        const esc = new ethers.Contract(ESCROW_ADDR, ESCROW_ABI, wallet.signer);
+        const enriched = await Promise.all(jobs.map(async j => {
+          try {
+            const c = await esc.getGig(j._id);
+            return {...j, gigId:c.gigId, gigNumber:Number(c.gigNumber), amount:ethers.formatEther(c.amount), status:STATUS_MAP[Number(c.status)]||j.status, proofIpfsHash:c.proofIpfsHash||j.proofIpfsHash};
+          } catch { return {...j, gigId:j._id, amount:String(j.srtAmount||0)}; }
+        }));
+        setGigs(enriched);
+      } else setGigs(jobs.map(j=>({...j, gigId:j._id, amount:String(j.srtAmount||0)})));
+    } catch(e) { console.error(e); }
+    finally { setLoading(false); }
+  }, [userId, token, wallet.signer, wallet.address]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  const handleApprove = async (gigId) => {
+    const r = await runTx(() => {
+      const e = new ethers.Contract(ESCROW_ADDR, ESCROW_ABI, wallet.signer);
+      return e.approveWork(gigId);
+    },"Releasing SRT to freelancer...");
+    if (r) { pushToast("💸 SRT released successfully!","success",6000); fetchData(); }
+  };
+
+  const handleDispute = async (gigId) => {
+    const r = await runTx(() => {
+      const e = new ethers.Contract(ESCROW_ADDR, ESCROW_ABI, wallet.signer);
+      return e.raiseDisputeAI(gigId);
+    },"Raising dispute (AI Tier 1)...");
+    if (r) { pushToast("🤖 AI is reviewing your dispute","info",6000); fetchData(); }
+  };
+
+  const displayGigs = tab === "active" ? activeGigs : completedGigs;
+
+  return (
+    <div className="min-h-screen bg-[#070711] text-white">
+      {/* Ambient */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden">
+        <div className="absolute top-1/3 right-1/4 w-96 h-96 bg-violet-600/8 rounded-full blur-3xl animate-pulse"/>
+        <div className="absolute bottom-1/4 left-1/4 w-72 h-72 bg-amber-500/5 rounded-full blur-3xl animate-pulse" style={{animationDelay:"1.5s"}}/>
+      </div>
+
+      <Navbar />
+
+      <div className="relative z-10 max-w-7xl mx-auto px-4 pt-6 pb-16">
+        {/* ── HERO ──────────────────────────────────────────────────────── */}
+        <div className="relative rounded-3xl overflow-hidden mb-8 border border-white/8">
+          <div className={`transition-opacity duration-700 ${heroLoaded?"opacity-100":"opacity-0"}`}>
+            <img src={clientImg} alt="Client dashboard" className="w-full h-52 sm:h-64 object-cover object-top"
+              onLoad={()=>setHeroLoaded(true)}/>
+          </div>
+          {!heroLoaded && <div className="w-full h-52 sm:h-64 bg-white/4 animate-pulse"/>}
+          <div className="absolute inset-0 bg-gradient-to-r from-[#070711]/90 via-[#070711]/55 to-transparent"/>
+          <div className="absolute inset-0 flex flex-col justify-center px-8">
+            <p className="text-violet-400 text-xs font-bold tracking-widest uppercase mb-2">🧑‍💼 Client Dashboard</p>
+            <h1 className="text-3xl sm:text-4xl font-black mb-2">
+              Hello,{" "}
+              <span className="bg-gradient-to-r from-violet-400 to-amber-400 bg-clip-text text-transparent">
+                {user?.firstName || "Client"}
+              </span>
+            </h1>
+            <p className="text-white/50 text-sm max-w-lg">Post gigs, lock SRT in escrow, review proof, and release payment — all in one place.</p>
+            <button onClick={()=>setShowCreate(true)}
+              className="mt-4 inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-gradient-to-r from-violet-600 to-amber-600 hover:from-violet-500 hover:to-amber-500 text-white font-bold text-sm transition-all hover:scale-105 shadow-xl shadow-violet-500/25 w-fit">
+              ➕ Post New Gig
+            </button>
+          </div>
+        </div>
+
+        {/* ── STATS ─────────────────────────────────────────────────────── */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          {[
+            {label:"SRT Balance",   val:parseFloat(srtBal).toFixed(2),    icon:"💎", color:"violet"},
+            {label:"Locked in Escrow", val:lockedSRT.toFixed(2),          icon:"🔒", color:"amber"},
+            {label:"Total Spent",   val:spentSRT.toFixed(2),              icon:"💸", color:"emerald"},
+            {label:"Active Gigs",   val:activeGigs.length,                icon:"📋", color:"cyan"},
+          ].map(({label,val,icon,color},i) => (
+            <StatCard key={i} label={label} val={val} icon={icon} color={color} delay={i*100}/>
+          ))}
+        </div>
+
+        {/* ── TABS + ACTIONS ────────────────────────────────────────────── */}
+        <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+          <div className="flex gap-2 bg-white/4 border border-white/8 rounded-2xl p-1.5 w-fit">
+            {[["active","📋 Active"], ["completed","✅ Completed"]].map(([v,l]) => (
+              <button key={v} onClick={()=>setTab(v)}
+                className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200
+                  ${tab===v ? "bg-gradient-to-r from-violet-600 to-cyan-600 text-white shadow-lg shadow-violet-500/20" : "text-white/40 hover:text-white"}`}>
+                {l} {v==="active"?`(${activeGigs.length})`:`(${completedGigs.length})`}
+              </button>
+            ))}
+          </div>
+          <button onClick={()=>fetchData()}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/6 hover:bg-white/10 text-white/50 hover:text-white text-xs font-semibold transition-all border border-white/8">
+            🔄 Refresh
+          </button>
+        </div>
+
+        {/* ── GIGS ──────────────────────────────────────────────────────── */}
+        {loading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {[1,2,3].map(i=><SkeletonGigCard key={i}/>)}
+          </div>
+        ) : displayGigs.length === 0 ? (
+          <div className="rounded-2xl border border-white/8 bg-white/4 p-14 text-center">
+            <p className="text-6xl mb-4 opacity-30">📋</p>
+            <p className="text-white/60 text-lg font-semibold mb-2">
+              {tab==="active" ? "No active gigs yet" : "No completed gigs yet"}
+            </p>
+            <p className="text-white/30 text-sm mb-6">Post your first gig and find the perfect freelancer.</p>
+            <button onClick={()=>setShowCreate(true)}
+              className="px-6 py-3 rounded-xl bg-gradient-to-r from-violet-600 to-amber-600 text-white font-semibold text-sm hover:scale-105 transition-all shadow-lg shadow-violet-500/20">
+              ➕ Post a Gig →
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {displayGigs.map((g,i) => (
+              <GigCard key={g.gigId||g._id} gig={g} idx={i}
+                onApprove={handleApprove}
+                onDispute={handleDispute}
+                onView={(id)=>navigate(`/ResolutionCenter?gig=${id}`)}/>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Create modal */}
+      {showCreate && (
+        <CreateGigModal srtBalance={srtBal} onClose={()=>setShowCreate(false)} onCreated={fetchData}/>
+      )}
+    </div>
+  );
+}
+
+// ─── Stat Card ────────────────────────────────────────────────────────────────
+function StatCard({ label, val, icon, color, delay }) {
+  const [ref, vis] = useFade(delay);
+  const c = {
+    violet:  "border-violet-500/20 bg-violet-500/8 text-violet-300",
+    cyan:    "border-cyan-500/20 bg-cyan-500/8 text-cyan-300",
+    amber:   "border-amber-500/20 bg-amber-500/8 text-amber-300",
+    emerald: "border-emerald-500/20 bg-emerald-500/8 text-emerald-300",
+  };
+  return (
+    <div ref={ref} style={{transitionDelay:`${delay}ms`}}
+      className={`rounded-2xl border p-5 transition-all duration-700 hover:scale-[1.02] ${c[color]}
+        ${vis?"opacity-100 translate-y-0":"opacity-0 translate-y-4"}`}>
+      <p className="text-2xl mb-2">{icon}</p>
+      <p className="text-white font-black text-2xl"><Counter target={parseFloat(val)}/> SRT</p>
+      <p className="text-white/40 text-xs mt-1">{label}</p>
+    </div>
+  );
+}

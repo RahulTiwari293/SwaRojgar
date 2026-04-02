@@ -1,226 +1,380 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
-import Navbar from '../navbar';
-import Breadcrumbs from '../components/Breadcrumbs';
-import './FreelancerJobs.css';
+/**
+ * FreelancerDashboard.jsx — Worker Dashboard
+ *
+ * Sections:
+ *  - Animated hero banner with stats
+ *  - Live SRT balance + earnings breakdown
+ *  - Active gigs with Submit Work / Dispute actions
+ *  - Browse open jobs feed
+ *  - Quick-action sidebar
+ *  - Scroll-triggered fade animations throughout
+ */
 
-function FreelancerJobs() {
-    const [jobs, setJobs] = useState([]);
-    const [loading, setLoading] = useState(false);
-    const [activeTab, setActiveTab] = useState('active'); // active, completed
-    const [stats, setStats] = useState({
-        totalEarned: 0,
-        pending: 0,
-        completed: 0,
-        active: 0
-    });
-    const navigate = useNavigate();
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import { ethers } from "ethers";
+import { useNavigate } from "react-router-dom";
+import { useGig, pushToast } from "./context/GigContext";
+import { SkeletonGigCard } from "./components/Skeleton";
+import Navbar from "./navbar";
+import freelancerImg from "./assets/freelancer_dashboard_hero.png";
 
-    useEffect(() => {
-        fetchJobs();
-    }, []);
+const BACKEND  = import.meta.env.VITE_BACKEND_URL || "http://localhost:5010";
+const ESCROW_ABI = [
+    "function raiseDisputeAI(string gigId) external",
+    "function getGig(string gigId) view returns (tuple(string gigId, uint256 gigNumber, address client, address freelancer, uint256 amount, uint8 status, uint256 createdAt, uint256 deadline, string proofIpfsHash, string metaEvidenceUri, string aiProposalUri, bool clientAcceptsAI, bool freelancerAcceptsAI, uint256 metaEvidenceID, uint256 klerosDisputeId, bool hasKlerosDispute, uint256 klerosRuling))",
+];
+const TOKEN_ABI   = ["function balanceOf(address) view returns(uint256)", "function decimals() view returns(uint8)"];
+const ESCROW_ADDR = import.meta.env.VITE_ESCROW_CONTRACT_ADDRESS || "0x5996AD515E407F1569278a1642cE9f259c1010eA";
+const TOKEN_ADDR  = import.meta.env.VITE_TOKEN_CONTRACT_ADDRESS  || "0xfdA41C31D6630980352F590c753E9Ee5E2964906";
 
-    const fetchJobs = async () => {
-        setLoading(true);
-        try {
-            const userId = localStorage.getItem('userId');
-            const response = await axios.get(
-                `http://localhost:5010/api/blockchain/gigs/user/${userId}?role=freelancer`
-            );
+const STATUS_MAP = { 0:"OPEN",1:"ASSIGNED",2:"PROOF_SUBMITTED",3:"DISPUTED_AI",4:"DISPUTED_KLEROS",5:"DISPUTED_HUMAN",6:"COMPLETED",7:"REFUNDED" };
 
-            const fetchedJobs = response.data.gigs || [];
-            setJobs(fetchedJobs);
-
-            // Calculate stats
-            const completed = fetchedJobs.filter(j => j.status === 'COMPLETED');
-            const active = fetchedJobs.filter(j => j.status === 'ASSIGNED' || j.status === 'PROOF_SUBMITTED');
-
-            setStats({
-                totalEarned: completed.reduce((sum, j) => sum + j.amount, 0),
-                pending: active.reduce((sum, j) => sum + j.amount, 0),
-                completed: completed.length,
-                active: active.length
-            });
-        } catch (err) {
-            console.error('Error fetching jobs:', err);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const filteredJobs = jobs.filter(job => {
-        if (activeTab === 'active') {
-            return job.status === 'ASSIGNED' || job.status === 'PROOF_SUBMITTED';
-        }
-        return job.status === 'COMPLETED';
-    });
-
-    const getStatusBadge = (status) => {
-        const badges = {
-            'ASSIGNED': { icon: '🔄', text: 'In Progress', class: 'status-progress' },
-            'PROOF_SUBMITTED': { icon: '⏳', text: 'Under Review', class: 'status-review' },
-            'COMPLETED': { icon: '✅', text: 'Completed', class: 'status-completed' }
-        };
-        return badges[status] || badges['ASSIGNED'];
-    };
-
-    if (loading) {
-        return (
-            <div className="freelancer-jobs-container">
-                <div className="loading-state">
-                    <div className="spinner"></div>
-                    <p>Loading your jobs...</p>
-                </div>
-            </div>
-        );
-    }
-
-    const breadcrumbItems = [
-        { label: 'Home', path: '/' },
-        { label: 'My Jobs', path: '/freelancer-jobs' }
-    ];
-
-    return (
-        <div className="freelancer-jobs-page">
-            <Navbar />
-            <Breadcrumbs items={breadcrumbItems} />
-            <div className="page-header">
-                <h1>💼 My Jobs</h1>
-                <p>Track your active projects and earnings</p>
-            </div>
-
-            {/* Stats Cards */}
-            <div className="stats-grid">
-                <div className="stat-card earnings">
-                    <div className="stat-icon">💰</div>
-                    <div className="stat-content">
-                        <h3>{stats.totalEarned.toFixed(2)} SRT</h3>
-                        <p>Total Earned</p>
-                    </div>
-                </div>
-
-                <div className="stat-card pending">
-                    <div className="stat-icon">⏳</div>
-                    <div className="stat-content">
-                        <h3>{stats.pending.toFixed(2)} SRT</h3>
-                        <p>Pending Payment</p>
-                    </div>
-                </div>
-
-                <div className="stat-card active">
-                    <div className="stat-icon">🔄</div>
-                    <div className="stat-content">
-                        <h3>{stats.active}</h3>
-                        <p>Active Jobs</p>
-                    </div>
-                </div>
-
-                <div className="stat-card completed">
-                    <div className="stat-icon">✅</div>
-                    <div className="stat-content">
-                        <h3>{stats.completed}</h3>
-                        <p>Completed Jobs</p>
-                    </div>
-                </div>
-            </div>
-
-            {/* Tabs */}
-            <div className="tabs">
-                <button
-                    className={`tab ${activeTab === 'active' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('active')}
-                >
-                    🔄 Active Jobs ({stats.active})
-                </button>
-                <button
-                    className={`tab ${activeTab === 'completed' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('completed')}
-                >
-                    ✅ Completed ({stats.completed})
-                </button>
-            </div>
-
-            {/* Jobs List */}
-            {filteredJobs.length === 0 ? (
-                <div className="empty-state">
-                    <div className="empty-icon">📭</div>
-                    <h3>No Jobs Found</h3>
-                    <p>
-                        {activeTab === 'active'
-                            ? "You don't have any active jobs. Start applying for jobs to earn SRT!"
-                            : "You haven't completed any jobs yet. Keep working!"}
-                    </p>
-                    {activeTab === 'active' && (
-                        <button onClick={() => navigate('/')} className="btn-primary">
-                            Find Jobs
-                        </button>
-                    )}
-                </div>
-            ) : (
-                <div className="jobs-list">
-                    {filteredJobs.map(job => {
-                        const badge = getStatusBadge(job.status);
-                        return (
-                            <div key={job._id} className="job-item">
-                                <div className="job-main">
-                                    <div className="job-info">
-                                        <h3>{job.title}</h3>
-                                        <p className="job-description">{job.description}</p>
-
-                                        <div className="job-meta">
-                                            <span className="meta-tag">
-                                                💰 {job.amount} SRT
-                                            </span>
-                                            {job.deadline && (
-                                                <span className="meta-tag">
-                                                    📅 {new Date(job.deadline).toLocaleDateString()}
-                                                </span>
-                                            )}
-                                            <span className="meta-tag">
-                                                👤 {job.customerId?.firstName} {job.customerId?.lastName}
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    <div className="job-status">
-                                        <span className={`status-badge ${badge.class}`}>
-                                            {badge.icon} {badge.text}
-                                        </span>
-                                    </div>
-                                </div>
-
-                                {activeTab === 'active' && job.status === 'ASSIGNED' && (
-                                    <div className="job-actions">
-                                        <button
-                                            onClick={() => navigate('/work-submission')}
-                                            className="btn-submit-work"
-                                        >
-                                            📤 Submit Work
-                                        </button>
-                                    </div>
-                                )}
-
-                                {job.status === 'PROOF_SUBMITTED' && (
-                                    <div className="job-note">
-                                        <span className="note-icon">ℹ️</span>
-                                        <span>Your work is under review by the customer</span>
-                                    </div>
-                                )}
-
-                                {job.status === 'COMPLETED' && (
-                                    <div className="job-note success">
-                                        <span className="note-icon">✅</span>
-                                        <span>Payment of {job.amount} SRT received</span>
-                                    </div>
-                                )}
-                            </div>
-                        );
-                    })}
-                </div>
-            )}
-        </div>
-    );
+// ─── Scroll-fade hook ──────────────────────────────────────────────────────────
+function useFade(delay = 0) {
+  const ref = useRef(null);
+  const [vis, setVis] = useState(false);
+  useEffect(() => {
+    const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) { setVis(true); obs.disconnect(); }}, { threshold: 0.1 });
+    if (ref.current) obs.observe(ref.current);
+    return () => obs.disconnect();
+  }, []);
+  return [ref, vis, delay];
 }
 
-export default FreelancerJobs;
+// ─── Animated counter ─────────────────────────────────────────────────────────
+function Counter({ target, suffix = "" }) {
+  const [val, setVal] = useState(0);
+  useEffect(() => {
+    const n = parseFloat(target) || 0;
+    let start = 0;
+    const step = n / 40;
+    const timer = setInterval(() => {
+      start += step;
+      if (start >= n) { setVal(n); clearInterval(timer); }
+      else setVal(start);
+    }, 30);
+    return () => clearInterval(timer);
+  }, [target]);
+  return <span>{typeof target === "number" ? val.toFixed(2) : Math.round(val)}{suffix}</span>;
+}
+
+// ─── Status Badge ─────────────────────────────────────────────────────────────
+const STATUS_STYLES = {
+  OPEN:            "bg-blue-500/15 border-blue-500/30 text-blue-300",
+  ASSIGNED:        "bg-yellow-500/15 border-yellow-500/30 text-yellow-300",
+  PROOF_SUBMITTED: "bg-purple-500/15 border-purple-500/30 text-purple-300",
+  COMPLETED:       "bg-emerald-500/15 border-emerald-500/30 text-emerald-300",
+  DISPUTED_AI:     "bg-orange-500/15 border-orange-500/30 text-orange-300",
+  DISPUTED_KLEROS: "bg-red-500/15 border-red-500/30 text-red-300",
+  DISPUTED_HUMAN:  "bg-pink-500/15 border-pink-500/30 text-pink-300",
+  REFUNDED:        "bg-slate-500/15 border-slate-500/30 text-slate-300",
+};
+function StatusBadge({ s }) {
+  return <span className={`px-2.5 py-1 text-xs font-bold rounded-full border ${STATUS_STYLES[s]||STATUS_STYLES.OPEN}`}>{s?.replace(/_/g," ")}</span>;
+}
+
+// ─── Job Card ─────────────────────────────────────────────────────────────────
+function JobCard({ job, onSubmit, onDispute, onView, idx }) {
+  const [ref, vis] = useFade(idx * 80);
+  const settled = ["COMPLETED","REFUNDED"].includes(job.status);
+  const canSubmit  = job.status === "ASSIGNED";
+  const canDispute = job.status === "PROOF_SUBMITTED";
+
+  return (
+    <div ref={ref} style={{ transitionDelay: `${idx*80}ms` }}
+      className={`group rounded-2xl border border-white/8 bg-white/4 hover:bg-white/6 hover:border-violet-500/30 backdrop-blur-sm p-5 transition-all duration-500 hover:scale-[1.01] hover:shadow-xl hover:shadow-violet-500/10
+        ${vis ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}>
+      <div className="flex items-start justify-between gap-4 mb-3 flex-wrap">
+        <div>
+          {job.gigNumber && <p className="text-cyan-400 text-xs font-bold mb-1">Gig #{job.gigNumber}</p>}
+          <h3 className="text-white font-semibold text-base">{job.title || "Untitled Gig"}</h3>
+          <p className="text-white/40 text-xs font-mono mt-0.5">{(job.gigId||job._id)?.slice(0,20)}...</p>
+        </div>
+        <div className="flex flex-col items-end gap-1.5">
+          <StatusBadge s={job.status} />
+          <span className="text-cyan-400 font-bold text-lg">{job.amount} SRT</span>
+        </div>
+      </div>
+
+      {job.content && <p className="text-white/40 text-sm mb-3 line-clamp-2">{job.content}</p>}
+
+      {/* Divider */}
+      <div className="h-px bg-white/5 mb-3"/>
+
+      {/* Locked funds badge */}
+      {!settled && (
+        <div className="flex items-center gap-2 mb-3 py-1.5 px-3 rounded-lg bg-amber-500/8 border border-amber-500/15">
+          <span className="text-amber-400 text-xs">🔒</span>
+          <span className="text-amber-300/70 text-xs">{job.amount} SRT locked in escrow</span>
+        </div>
+      )}
+      {job.status === "COMPLETED" && (
+        <div className="flex items-center gap-2 mb-3 py-1.5 px-3 rounded-lg bg-emerald-500/8 border border-emerald-500/15">
+          <span className="text-xs">🎉</span>
+          <span className="text-emerald-300/80 text-xs font-semibold">{job.amount} SRT paid to your wallet!</span>
+        </div>
+      )}
+
+      {/* Actions */}
+      <div className="flex gap-2 flex-wrap">
+        {canSubmit && (
+          <button onClick={() => onSubmit(job)} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-violet-600 to-cyan-600 hover:from-violet-500 hover:to-cyan-500 text-white text-xs font-bold transition-all hover:scale-105 shadow-lg shadow-violet-500/20">
+            📤 Submit Work
+          </button>
+        )}
+        {canDispute && (
+          <button onClick={() => onDispute(job.gigId||job._id)} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-orange-600/70 hover:bg-orange-500 text-white text-xs font-bold transition-all hover:scale-105">
+            ⚠️ Raise Dispute
+          </button>
+        )}
+        <button onClick={() => onView(job.gigId||job._id)} className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/6 hover:bg-white/10 text-white/50 hover:text-white text-xs font-semibold transition-all border border-white/8">
+          ⚖️ Resolution
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Browse Job Card ──────────────────────────────────────────────────────────
+function BrowseCard({ job, onApply, idx }) {
+  const [ref, vis] = useFade(idx * 60);
+  const [applying, setApplying] = useState(false);
+  const handle = async () => {
+    setApplying(true);
+    await onApply(job);
+    setApplying(false);
+  };
+  return (
+    <div ref={ref} style={{ transitionDelay:`${idx*60}ms` }}
+      className={`group rounded-2xl border border-white/8 bg-white/4 hover:bg-white/6 hover:border-cyan-500/30 p-5 transition-all duration-500 hover:scale-[1.01] hover:shadow-lg hover:shadow-cyan-500/8 cursor-pointer
+        ${vis ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}>
+      <div className="flex items-start justify-between gap-4 mb-2 flex-wrap">
+        <div>
+          <h3 className="text-white font-semibold text-sm group-hover:text-cyan-300 transition-colors">{job.title}</h3>
+          <p className="text-white/40 text-xs mt-0.5">
+            Posted by {job.userId?.firstName} {job.userId?.lastName}
+          </p>
+        </div>
+        <span className="text-emerald-400 font-bold text-base shrink-0">{job.srtAmount} SRT</span>
+      </div>
+      <p className="text-white/40 text-xs mb-3 line-clamp-2">{job.content}</p>
+      <div className="flex items-center justify-between">
+        {job.deadline && <span className="text-white/30 text-xs">📅 Due {new Date(job.deadline*1000).toLocaleDateString()}</span>}
+        <button onClick={handle} disabled={applying}
+          className="ml-auto flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold transition-all hover:scale-105 disabled:opacity-50">
+          {applying ? <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"/> : "Apply →"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── MAIN ─────────────────────────────────────────────────────────────────────
+export default function FreelancerDashboard() {
+  const navigate  = useNavigate();
+  const { wallet, runTx } = useGig();
+  const userId    = localStorage.getItem("userId");
+  const token     = localStorage.getItem("token");
+
+  const [srtBal,    setSrtBal]    = useState("0");
+  const [myJobs,    setMyJobs]    = useState([]);
+  const [openJobs,  setOpenJobs]  = useState([]);
+  const [loading,   setLoading]   = useState(true);
+  const [tab,       setTab]       = useState("active"); // active | completed | browse
+  const [user,      setUser]      = useState(null);
+  const [heroBannerLoaded, setHeroBannerLoaded] = useState(false);
+
+  // Stats derived from jobs
+  const activeJobs    = myJobs.filter(j => ["ASSIGNED","PROOF_SUBMITTED"].includes(j.status));
+  const completedJobs = myJobs.filter(j => j.status === "COMPLETED");
+  const pendingSRT    = activeJobs.reduce((s,j) => s + parseFloat(j.amount||0), 0);
+  const earnedSRT     = completedJobs.reduce((s,j) => s + parseFloat(j.amount||0), 0);
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      // User profile
+      if (userId) {
+        const r = await fetch(`${BACKEND}/api/users/${userId}`, { headers: { Authorization: `Bearer ${token}` }});
+        if (r.ok) setUser(await r.json());
+      }
+
+      // SRT Balance
+      if (wallet.signer && wallet.address) {
+        const t = new ethers.Contract(TOKEN_ADDR, TOKEN_ABI, wallet.signer);
+        const [raw, dec] = await Promise.all([t.balanceOf(wallet.address), t.decimals()]);
+        setSrtBal(ethers.formatUnits(raw, dec));
+      }
+
+      // My assigned jobs from backend
+      const myRes  = await fetch(`${BACKEND}/api/jobs/freelancer/${userId}`, { headers: { Authorization: `Bearer ${token}` }});
+      const myData = await myRes.json();
+      const jobs   = Array.isArray(myData) ? myData : [];
+
+      // Enrich with on-chain data
+      if (wallet.signer) {
+        const escrow = new ethers.Contract(ESCROW_ADDR, ESCROW_ABI, wallet.signer);
+        const enriched = await Promise.all(jobs.map(async j => {
+          try {
+            const c = await escrow.getGig(j._id);
+            return { ...j, gigId: c.gigId, gigNumber: Number(c.gigNumber), amount: ethers.formatEther(c.amount), status: STATUS_MAP[Number(c.status)] || j.status };
+          } catch { return { ...j, gigId: j._id, amount: String(j.srtAmount||0) }; }
+        }));
+        setMyJobs(enriched);
+      } else setMyJobs(jobs.map(j => ({ ...j, gigId:j._id, amount:String(j.srtAmount||0) })));
+
+      // Open jobs for browse tab
+      const openRes  = await fetch(`${BACKEND}/api/jobs/available`);
+      const openData = await openRes.json();
+      setOpenJobs(Array.isArray(openData) ? openData : []);
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
+  }, [userId, token, wallet.signer, wallet.address]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  const handleApply = async (job) => {
+    if (!wallet.address) { pushToast("Connect your wallet first","warning"); return; }
+    try {
+      const res = await fetch(`${BACKEND}/api/jobs/${job._id}/accept`, {
+        method:"PATCH", headers:{"Content-Type":"application/json", Authorization:`Bearer ${token}`},
+        body: JSON.stringify({ freelancerId: userId, freelancerWallet: wallet.address })
+      });
+      if (res.ok) { pushToast("✅ Application submitted!","success"); fetchData(); }
+      else        { pushToast("Failed to apply","error"); }
+    } catch(e) { pushToast(e.message,"error"); }
+  };
+
+  const handleDispute = async (gigId) => {
+    const r = await runTx(() => {
+      const e = new ethers.Contract(ESCROW_ADDR, ESCROW_ABI, wallet.signer);
+      return e.raiseDisputeAI(gigId);
+    }, "Raising dispute (AI Tier 1)...");
+    if (r) { pushToast("🤖 AI is now reviewing your dispute","info",6000); fetchData(); }
+  };
+
+  const displayJobs = tab === "active" ? activeJobs : tab === "completed" ? completedJobs : openJobs;
+
+  return (
+    <div className="min-h-screen bg-[#070711] text-white">
+      {/* Ambient glow */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden">
+        <div className="absolute top-1/4 left-1/3 w-96 h-96 bg-cyan-600/8 rounded-full blur-3xl animate-pulse"/>
+        <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-violet-500/6 rounded-full blur-3xl animate-pulse" style={{animationDelay:"2s"}}/>
+      </div>
+
+      <Navbar />
+
+      <div className="relative z-10 max-w-7xl mx-auto px-4 pt-6 pb-16">
+        {/* ── HERO BANNER ─────────────────────────────────────────────────── */}
+        <div className="relative rounded-3xl overflow-hidden mb-8 border border-white/8">
+          {/* Image */}
+          <div className={`transition-opacity duration-700 ${heroBannerLoaded ? "opacity-100" : "opacity-0"}`}>
+            <img src={freelancerImg} alt="Freelancer workspace" className="w-full h-52 sm:h-64 object-cover"
+              onLoad={() => setHeroBannerLoaded(true)} />
+          </div>
+          {!heroBannerLoaded && <div className="w-full h-52 sm:h-64 bg-white/4 animate-pulse"/>}
+
+          {/* Overlay */}
+          <div className="absolute inset-0 bg-gradient-to-r from-[#070711]/90 via-[#070711]/60 to-transparent"/>
+
+          {/* Text */}
+          <div className="absolute inset-0 flex flex-col justify-center px-8">
+            <p className="text-cyan-400 text-xs font-bold tracking-widest uppercase mb-2">👷 Worker Dashboard</p>
+            <h1 className="text-3xl sm:text-4xl font-black mb-2">
+              Welcome back,{" "}
+              <span className="bg-gradient-to-r from-cyan-400 to-violet-400 bg-clip-text text-transparent">
+                {user?.firstName || "Freelancer"}
+              </span>
+            </h1>
+            <p className="text-white/50 text-sm max-w-lg">Track your gigs, submit work, and get paid in SRT — all secured by smart contracts.</p>
+          </div>
+        </div>
+
+        {/* ── STAT CARDS ──────────────────────────────────────────────────── */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          {[
+            { label:"SRT Balance",    val:parseFloat(srtBal).toFixed(2), icon:"💎", color:"violet",  suffix:" SRT" },
+            { label:"Pending Income", val:pendingSRT.toFixed(2),          icon:"⏳", color:"amber",   suffix:" SRT" },
+            { label:"Total Earned",   val:earnedSRT.toFixed(2),           icon:"💰", color:"emerald", suffix:" SRT" },
+            { label:"Active Gigs",    val:activeJobs.length,              icon:"🔄", color:"cyan",    suffix:"" },
+          ].map(({label,val,icon,color,suffix},i) => (
+            <StatCard key={i} label={label} val={val} icon={icon} color={color} suffix={suffix} delay={i*100} />
+          ))}
+        </div>
+
+        {/* ── TABS ────────────────────────────────────────────────────────── */}
+        <div className="flex gap-2 mb-6 bg-white/4 border border-white/8 rounded-2xl p-1.5 w-fit">
+          {[["active","🔄 Active"], ["completed","✅ Completed"], ["browse","🌐 Browse Jobs"]].map(([v,l]) => (
+            <button key={v} onClick={() => setTab(v)}
+              className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200
+                ${tab===v ? "bg-gradient-to-r from-violet-600 to-cyan-600 text-white shadow-lg shadow-violet-500/20" : "text-white/40 hover:text-white"}`}>
+              {l}
+            </button>
+          ))}
+        </div>
+
+        {/* ── CONTENT ─────────────────────────────────────────────────────── */}
+        {loading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {[1,2,3,4].map(i => <SkeletonGigCard key={i}/>)}
+          </div>
+        ) : displayJobs.length === 0 ? (
+          <EmptyState tab={tab} onBrowse={() => setTab("browse")} onNavigate={navigate} />
+        ) : tab === "browse" ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {openJobs.map((j,i) => <BrowseCard key={j._id} job={j} onApply={handleApply} idx={i}/>)}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {displayJobs.map((j,i) => (
+              <JobCard key={j.gigId||j._id} job={j} idx={i}
+                onSubmit={() => navigate("/work-submission", { state:{ gigId:j.gigId||j._id } })}
+                onDispute={handleDispute}
+                onView={(id) => navigate(`/ResolutionCenter?gig=${id}`)}/>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Stat Card ────────────────────────────────────────────────────────────────
+function StatCard({ label, val, icon, color, suffix, delay }) {
+  const [ref, vis] = useFade(delay);
+  const colorMap = {
+    violet: "border-violet-500/20 bg-violet-500/8 text-violet-300",
+    cyan:   "border-cyan-500/20 bg-cyan-500/8 text-cyan-300",
+    amber:  "border-amber-500/20 bg-amber-500/8 text-amber-300",
+    emerald:"border-emerald-500/20 bg-emerald-500/8 text-emerald-300",
+  };
+  return (
+    <div ref={ref} style={{ transitionDelay:`${delay}ms` }}
+      className={`rounded-2xl border p-5 transition-all duration-700 hover:scale-[1.02] ${colorMap[color]}
+        ${vis ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
+      <p className="text-2xl mb-2">{icon}</p>
+      <p className="text-white font-black text-2xl"><Counter target={parseFloat(val)} />{suffix}</p>
+      <p className="text-white/40 text-xs mt-1">{label}</p>
+    </div>
+  );
+}
+
+// ─── Empty State ──────────────────────────────────────────────────────────────
+function EmptyState({ tab, onBrowse, onNavigate }) {
+  return (
+    <div className="rounded-2xl border border-white/8 bg-white/4 p-14 text-center">
+      <p className="text-6xl mb-4 opacity-40">{tab==="browse" ? "🔍" : "📭"}</p>
+      <p className="text-white/60 text-base font-semibold mb-2">
+        {tab==="active" ? "No active gigs right now" : tab==="completed" ? "No completed gigs yet" : "No open jobs available"}
+      </p>
+      <p className="text-white/30 text-sm mb-6">
+        {tab==="active" ? "Browse the job board to find your next project" : "Keep working — your first payout is close!"}
+      </p>
+      <button onClick={tab==="active" ? onBrowse : () => onNavigate("/")}
+        className="px-6 py-3 rounded-xl bg-gradient-to-r from-violet-600 to-cyan-600 text-white font-semibold text-sm hover:scale-105 transition-all shadow-lg shadow-violet-500/20">
+        {tab==="active" ? "Browse Open Jobs →" : "Back to Home →"}
+      </button>
+    </div>
+  );
+}
