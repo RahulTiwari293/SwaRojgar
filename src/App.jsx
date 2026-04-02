@@ -3,6 +3,7 @@ import "./index.css";
 import Login from "./Login";
 import SignUp from "./SignUp";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import LandingPage from "./LandingPage.jsx";
 import Home from "./Home.jsx";
 import AdvancedEscrowDemo from "./EscrowAccount.jsx";
 import CustomerEscrowInterface from "./customerEscrow.jsx";
@@ -19,13 +20,13 @@ function App() {
   return (
     <Router>
       <Routes>
-        {/* made this as the first page  */}
-        <Route path="/" element={<Home />} />
+        {/* Landing page — public entry point */}
+        <Route path="/" element={<LandingPage />} />
+        {/* Main app feed (post login) */}
+        <Route path="/home" element={<Home />} />
         <Route path="/custescrow" element={<CustomerEscrowInterface />} />
         <Route path="/escrow" element={<AdvancedEscrowDemo />} />
         <Route path="/ResolutionCenter" element={<ResolutionCenter />} />
-
-        {/* <Route path="/freelancer-dashboard" element={<Home />} /> */}
         <Route path="/client-dashboard" element={<ClientDashboard />} />
         <Route path="/signup" element={<SignUp />} />
         <Route path="/login" element={<Login />} />

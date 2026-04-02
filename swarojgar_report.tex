@@ -1,0 +1,66 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{geometry}
+\geometry{a4paper, margin=1in}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{hyperref}
+
+\titleformat{\section}{\large\bfseries}{}{0em}{}[\titlerule]
+
+\title{\textbf{Project Progress Report: SwaRojgar}}
+\author{\textbf{Team Details:}\\ Rahul Tiwari (B.Tech CSE, Bennett University)}
+\date{April 1, 2026}
+
+\begin{document}
+
+\maketitle
+
+\section{Project Objective}
+SwaRojgar is designed to be a decentralized, transparent, and fair freelancing platform. The primary objective is to overcome the limitations of traditional freelance marketplaces, such as exorbitant commission fees, centralized control aver user funds, and arbitrary dispute resolutions. By leveraging Web3 technologies, SwaRojgar ensures that payments are secured via smart contracts, and identities remain decentralized.
+
+\section{Approach Used}
+The architecture integrates both Web2 and Web3 paradigms to balance usability and decentralization:
+\begin{itemize}[noitemsep,topsep=0pt]
+    \item \textbf{Frontend:} Built with React, Vite, and Tailwind CSS for a highly responsive user experience.
+    \item \textbf{Backend \& Data storage:} Uses Node.js and Express to serve APIs, with MongoDB storing off-chain metadata like user profiles and basic job descriptions.
+    \item \textbf{Smart Contracts:} Written in Solidity and deployed to the Ethereum Sepolia testnet using Hardhat.
+    \item \textbf{Blockchain Interaction:} Enabled through Web3.js and Ethers.js, directly linking the user's wallet (e.g., MetaMask) to on-chain escrow services.
+\end{itemize}
+
+\section{Work Completed Till Now}
+\begin{itemize}[noitemsep,topsep=0pt]
+    \item Established the foundational project structure for both frontend and backend.
+    \item Fully implemented user authentication and authorization using JWT and Clerk.
+    \item Created the core schemas in MongoDB (Users, Jobs, Bids).
+    \item Successfully integrated Web3 wallet connections allowing users to link their MetaMask accounts.
+    \item Deployed the initial version of the milestone-based escrow smart contract on the Sepolia testnet.
+\end{itemize}
+
+\section{Current Results}
+Currently, SwaRojgar is fully functional in a local development environment. A client can successfully log in, post a job listing, and initiate an on-chain escrow by depositing cryptocurrency into the smart contract. Freelancers can register, bid on open listings, and link their wallets to receive funds upon client approval.
+
+\section{Challenges Faced}
+\begin{itemize}[noitemsep,topsep=0pt]
+    \item \textbf{State Synchronization:} Keeping off-chain MongoDB data perfectly synchronized with the immutable on-chain state, specifically managing transaction delays and block confirmations.
+    \item \textbf{UX Friction:} Simplifying the onboarding process for users unfamiliar with Web3 wallets and gas fees.
+    \item \textbf{Testnet Instability:} Occasional delays or issues relying on testnet faucets to acquire Sepolia ETH for extensive testing.
+\end{itemize}
+
+\section{Plan for Remaining Work}
+The immediate focus will remain on finalizing testnet testing, edge cases, and security enhancements:
+\begin{itemize}[noitemsep,topsep=0pt] 
+    \item \textbf{Security Audits:} Conducting comprehensive tests on the escrow logic to prevent reentrancy and overflow vulnerabilities.
+    \item \textbf{Mainnet Deployment Strategy:} Structuring a scalable deployment plan for transitioning out of the Sepolia testnet phase.
+\end{itemize}
+
+\section{Future Scope: Integrating Kleros \& IPFS}
+A major challenge with freelancing platforms is the unbiased resolution of conflicts over project milestone completion. As a future expansion, SwaRojgar will integrate the \textbf{Kleros Court} (an open-source decentralized arbitration protocol) alongside \textbf{IPFS} (InterPlanetary File System) for decentralized evidence storage.
+\begin{itemize}[noitemsep,topsep=0pt]
+    \item \textbf{Arbitrable Smart Contracts:} The current escrow contracts will implement the ERC-792 standard to automatically interact with Kleros.
+    \item \textbf{Immutable Evidence on IPFS:} In the event of a dispute, freelancers and clients will compile evidence (e.g., chat logs, code commits) and upload it to IPFS. Only the IPFS hash is submitted on-chain, ensuring storage efficiency and tampering resistance.
+    \item \textbf{Crowdsourced Jury Adjudication:} Specially selected, staked Kleros jurors evaluate the IPFS evidence and vote on a ruling. 
+    \item \textbf{Trustless Enforcement:} The smart contract will automatically execute the jury’s decision, releasing the escrowed funds to the correct party without any centralized human intervention.
+\end{itemize}
+
+\end{document}

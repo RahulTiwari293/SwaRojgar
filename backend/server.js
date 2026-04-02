@@ -8,8 +8,10 @@ const path = require('path');
 const Post = require('./models/Post');
 const postRoutes = require('./routes/posts');
 const blockchainRoutes = require('./routes/blockchain');
+const disputeRoutes = require('./routes/dispute');
 const blockchainService = require('./blockchain/blockchainService');
 const bcrypt = require('bcrypt');
+const { generateToken } = require('./middleware/auth');
 
 const app = express();
 const PORT = process.env.PORT || 5010;
@@ -69,6 +71,9 @@ app.use('/api/posts', postRoutes);
 // Use the blockchain routes
 app.use('/api/blockchain', blockchainRoutes);
 
+// Use the dispute routes (3-tier: AI → Kleros → Human)
+app.use('/api/dispute', disputeRoutes);
+
 // Signup route
 app.post('/signup', async (req, res) => {
     const { firstName, lastName, email, phoneNumber, password, userType } = req.body;
@@ -84,8 +89,10 @@ app.post('/signup', async (req, res) => {
 
     try {
         await newUser.save();
+        const token = generateToken(newUser._id, newUser.userType);
         res.status(201).json({
             message: 'User registered successfully',
+            token,
             userId: newUser._id,
             userType: newUser.userType
         });
@@ -122,10 +129,16 @@ app.post('/login', async (req, res) => {
         const isPasswordValid = await bcrypt.compare(password, user.password);
 
         if (isPasswordValid) {
+            const token = generateToken(user._id, user.userType);
             res.status(200).json({
                 message: 'Login successful',
+                token,
                 userId: user._id,
-                userType: user.userType
+                userType: user.userType,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                profilePhoto: user.profilePhoto,
+                walletAddress: user.walletAddress
             });
             console.log("LOGIN SUCCESSFUL");
         } else {
@@ -174,17 +187,60 @@ app.get('/api/users/:userId', async (req, res) => {
     try {
         const { userId } = req.params;
         const user = await User.findById(userId).select('-password');
-
-        if (!user) {
-            return res.status(404).json({ message: 'User not found' });
-        }
-
+        if (!user) return res.status(404).json({ message: 'User not found' });
         res.status(200).json(user);
     } catch (error) {
         console.error('Error fetching user:', error);
         res.status(500).json({ message: 'Error fetching user', error: error.message });
     }
 });
+
+// ─── Save wallet address for a user ──────────────────────────────────────────
+// Called when user connects MetaMask — links wallet to their account
+app.patch('/api/users/:userId/wallet', async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const { walletAddress } = req.body;
+        if (!walletAddress) return res.status(400).json({ message: 'walletAddress is required' });
+
+        const user = await User.findByIdAndUpdate(
+            userId,
+            { walletAddress: walletAddress.toLowerCase() },
+            { new: true, select: '-password' }
+        );
+        if (!user) return res.status(404).json({ message: 'User not found' });
+
+        res.json({ message: 'Wallet address saved', walletAddress: user.walletAddress });
+    } catch (error) {
+        res.status(500).json({ message: 'Error saving wallet', error: error.message });
+    }
+});
+
+// ─── Update user profile (bio, skills, etc.) ─────────────────────────────────
+app.patch('/api/users/:userId/profile', async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const { bio, skills, hourlyRate, portfolio, firstName, lastName, phoneNumber } = req.body;
+
+        const updates = {};
+        if (bio !== undefined)        updates.bio        = bio;
+        if (skills !== undefined)     updates.skills     = skills;
+        if (hourlyRate !== undefined) updates.hourlyRate = hourlyRate;
+        if (portfolio !== undefined)  updates.portfolio  = portfolio;
+        if (firstName)                updates.firstName  = firstName;
+        if (lastName)                 updates.lastName   = lastName;
+        if (phoneNumber)              updates.phoneNumber = phoneNumber;
+
+        const user = await User.findByIdAndUpdate(userId, updates, { new: true, select: '-password' });
+        if (!user) return res.status(404).json({ message: 'User not found' });
+
+        res.json({ message: 'Profile updated', user });
+    } catch (error) {
+        res.status(500).json({ message: 'Error updating profile', error: error.message });
+    }
+});
+
+
 
 // ===== JOB MANAGEMENT ENDPOINTS =====
 

@@ -1,143 +1,139 @@
-import hre from "hardhat";
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+/**
+ * deploy.js — SwaRojgar 3-Tier GigEscrow Deployment
+ *
+ * Deploys:
+ *   1. SwaRojgarToken (SRT ERC-20)
+ *   2. GigEscrow (Kleros-enabled, 3-tier dispute resolution)
+ *
+ * Usage:
+ *   npx hardhat run scripts/deploy.js --network sepolia
+ *
+ * Kleros Sepolia Court: 0x90992fb4E15ce0C59aEFfb376460Fda4Ee19C879
+ * Sub-court 0 (General), 3 jurors
+ */
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import hre from "hardhat";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// ─── Kleros Configuration ────────────────────────────────────────────────────
+// Kleros Court on Ethereum Sepolia Testnet
+const KLEROS_COURT_SEPOLIA = "0x90992fb4E15ce0C59aEFfb376460Fda4Ee19C879";
+
+// Sub-court 0 = General | 3 jurors
+// extraData ABI-encodes: (uint96 subCourtId, uint96 numberOfJurors)
+function encodeExtraData(subCourtId = 0, numberOfJurors = 3) {
+    const { ethers } = hre;
+    return ethers.AbiCoder.defaultAbiCoder().encode(
+        ["uint96", "uint96"],
+        [subCourtId, numberOfJurors]
+    );
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 async function main() {
-    const network = await hre.ethers.provider.getNetwork();
-    console.log("🚀 Starting deployment to", network.name);
-    console.log("⏰ Timestamp:", new Date().toISOString());
+    const { ethers } = hre;
+    const [deployer] = await ethers.getSigners();
+    const network = hre.network.name;
 
-    // Get deployer account
-    const [deployer] = await hre.ethers.getSigners();
-    console.log("\n📝 Deploying contracts with account:", deployer.address);
+    console.log("\n🚀 SwaRojgar 3-Tier Escrow Deployment");
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
+    console.log(`📡 Network: ${network}`);
+    console.log(`👤 Deployer: ${deployer.address}`);
 
-    // Check deployer balance
-    const balance = await hre.ethers.provider.getBalance(deployer.address);
-    console.log("💰 Account balance:", hre.ethers.formatEther(balance), "ETH");
+    const balance = await ethers.provider.getBalance(deployer.address);
+    console.log(`💰 Balance: ${ethers.formatEther(balance)} ETH\n`);
 
-    if (balance === 0n) {
-        console.log("\n⚠️  WARNING: Account has 0 ETH!");
-        console.log("Get Sepolia test ETH from: https://www.alchemy.com/faucets/ethereum-sepolia");
-        console.log(`Your wallet address: ${deployer.address}`);
-        process.exit(1);
-    }
-
-    // Deploy SwaRojgarToken
-    console.log("\n📦 Deploying SwaRojgarToken...");
-    const SwaRojgarToken = await hre.ethers.getContractFactory("SwaRojgarToken");
-    const token = await SwaRojgarToken.deploy();
+    // ── 1. Deploy SwaRojgar Token ───────────────────────────────────────────
+    console.log("1️⃣  Deploying SwaRojgarToken...");
+    const TokenFactory = await ethers.getContractFactory("SwaRojgarToken");
+    const token = await TokenFactory.deploy();
     await token.waitForDeployment();
     const tokenAddress = await token.getAddress();
+    console.log(`   ✅ SwaRojgarToken deployed: ${tokenAddress}`);
 
-    console.log("✅ SwaRojgarToken deployed to:", tokenAddress);
+    // ── 2. Deploy GigEscrow ─────────────────────────────────────────────────
+    console.log("\n2️⃣  Deploying GigEscrow (3-Tier) ...");
 
-    // Deploy GigEscrow
-    console.log("\n📦 Deploying GigEscrow...");
-    const GigEscrow = await hre.ethers.getContractFactory("GigEscrow");
-    const escrow = await GigEscrow.deploy(tokenAddress);
+    // Use Kleros Court on Sepolia; fallback to a mock address for local testing
+    const arbitratorAddress = network === "sepolia"
+        ? KLEROS_COURT_SEPOLIA
+        : deployer.address; // local: deployer acts as mock arbitrator
+
+    const extraData = encodeExtraData(0, 3); // General court, 3 jurors
+
+    const EscrowFactory = await ethers.getContractFactory("GigEscrow");
+    const escrow = await EscrowFactory.deploy(
+        tokenAddress,
+        arbitratorAddress,
+        extraData
+    );
     await escrow.waitForDeployment();
     const escrowAddress = await escrow.getAddress();
+    console.log(`   ✅ GigEscrow deployed: ${escrowAddress}`);
+    console.log(`   ⚖️  Arbitrator: ${arbitratorAddress}`);
+    console.log(`   📦 ExtraData: subCourt=0, jurors=3`);
 
-    console.log("✅ GigEscrow deployed to:", escrowAddress);
-
-    // Get token details
-    const name = await token.name();
-    const symbol = await token.symbol();
-    const totalSupply = await token.totalSupply();
-    const decimals = await token.decimals();
-
-    console.log("\n📊 Token Details:");
-    console.log("   Name:", name);
-    console.log("   Symbol:", symbol);
-    console.log("   Decimals:", decimals);
-    console.log("   Total Supply:", hre.ethers.formatEther(totalSupply), symbol);
-    console.log("   Owner:", await token.owner());
-
-    console.log("\n📊 Escrow Details:");
-    console.log("   Token Address:", await escrow.srtToken());
-    console.log("   Platform Fee:", await escrow.platformFeePercent(), "basis points (2%)");
-    console.log("   Fee Collector:", await escrow.feeCollector());
-    console.log("   Owner:", await escrow.owner());
-
-    // Save deployment info
-    const networkInfo = await hre.ethers.provider.getNetwork();
-    const deploymentInfo = {
-        network: networkInfo.name,
-        chainId: networkInfo.chainId.toString(),
+    // ── 3. Save Deployment ──────────────────────────────────────────────────
+    const timestamp = Date.now();
+    const deployment = {
+        network,
+        chainId: hre.network.config.chainId,
         deployer: deployer.address,
         timestamp: new Date().toISOString(),
         contracts: {
             SwaRojgarToken: {
                 address: tokenAddress,
-                name: name,
-                symbol: symbol,
-                totalSupply: totalSupply.toString(),
-                decimals: Number(decimals)
+                name: "SwaRojgar Token",
+                symbol: "SRT",
+                totalSupply: ethers.formatEther(await token.totalSupply()),
+                decimals: 18
             },
             GigEscrow: {
                 address: escrowAddress,
-                tokenAddress: tokenAddress,
-                platformFee: (await escrow.platformFeePercent()).toString(),
-                feeCollector: await escrow.feeCollector()
+                arbitrator: arbitratorAddress,
+                extraData,
+                subCourtId: 0,
+                numberOfJurors: 3,
+                platformFee: "200" // 2%
             }
         }
     };
 
-    // Save to JSON file
-    const deploymentsDir = path.join(__dirname, '../deployments');
-    if (!fs.existsSync(deploymentsDir)) {
-        fs.mkdirSync(deploymentsDir);
+    const deployDir = path.join(__dirname, "../deployments");
+    if (!fs.existsSync(deployDir)) fs.mkdirSync(deployDir, { recursive: true });
+
+    fs.writeFileSync(
+        path.join(deployDir, `${network}-${timestamp}.json`),
+        JSON.stringify(deployment, null, 2)
+    );
+    fs.writeFileSync(
+        path.join(deployDir, `${network}-latest.json`),
+        JSON.stringify(deployment, null, 2)
+    );
+
+    console.log(`\n💾 Deployment saved to deployments/${network}-latest.json`);
+
+    // ── 4. Summary ──────────────────────────────────────────────────────────
+    console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    console.log("✅ DEPLOYMENT COMPLETE\n");
+    console.log(`SwaRojgarToken : ${tokenAddress}`);
+    console.log(`GigEscrow      : ${escrowAddress}`);
+    if (network === "sepolia") {
+        console.log(`\n🔍 Verify on Etherscan:`);
+        console.log(`   https://sepolia.etherscan.io/address/${tokenAddress}`);
+        console.log(`   https://sepolia.etherscan.io/address/${escrowAddress}`);
+        console.log(`\n📋 Add to backend/.env:`);
+        console.log(`   TOKEN_CONTRACT_ADDRESS=${tokenAddress}`);
+        console.log(`   ESCROW_CONTRACT_ADDRESS=${escrowAddress}`);
     }
-
-    const filename = `${networkInfo.name}-${Date.now()}.json`;
-    fs.writeFileSync(
-        path.join(deploymentsDir, filename),
-        JSON.stringify(deploymentInfo, null, 2)
-    );
-
-    console.log("\n💾 Deployment info saved to:", filename);
-
-    // Save latest deployment
-    fs.writeFileSync(
-        path.join(deploymentsDir, `${networkInfo.name}-latest.json`),
-        JSON.stringify(deploymentInfo, null, 2)
-    );
-
-    console.log("\n✨ Deployment complete!");
-    console.log("\n📋 COPY THESE ADDRESSES:");
-    console.log("━".repeat(60));
-    console.log(`TOKEN_CONTRACT_ADDRESS=${tokenAddress}`);
-    console.log(`ESCROW_CONTRACT_ADDRESS=${escrowAddress}`);
-    console.log("━".repeat(60));
-
-    console.log("\n📝 Next Steps:");
-    console.log("\n1️⃣  Update backend/.env:");
-    console.log(`   TOKEN_CONTRACT_ADDRESS=${tokenAddress}`);
-    console.log(`   ESCROW_CONTRACT_ADDRESS=${escrowAddress}`);
-
-    console.log("\n2️⃣  Update frontend .env (in root directory):");
-    console.log(`   REACT_APP_TOKEN_CONTRACT_ADDRESS=${tokenAddress}`);
-    console.log(`   REACT_APP_ESCROW_CONTRACT_ADDRESS=${escrowAddress}`);
-
-    console.log("\n3️⃣  Import SRT token to MetaMask:");
-    console.log(`   • Token Address: ${tokenAddress}`);
-    console.log("   • Symbol: SRT");
-    console.log("   • Decimals: 18");
-    console.log("   • You now have 1,000,000 SRT tokens! 🎉");
-
-    console.log("\n4️⃣  View on Etherscan:");
-    console.log(`   https://sepolia.etherscan.io/address/${tokenAddress}`);
-    console.log(`   https://sepolia.etherscan.io/address/${escrowAddress}`);
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
 }
 
-main()
-    .then(() => process.exit(0))
-    .catch((error) => {
-        console.error("\n❌ Deployment failed:");
-        console.error(error);
-        process.exit(1);
-    });
+main().catch((error) => {
+    console.error("❌ Deployment failed:", error);
+    process.exit(1);
+});

@@ -7,12 +7,30 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Dependencies
 node_modules
+backend/node_modules
+blockchain/node_modules
+
+# Build output
 dist
 dist-ssr
 *.local
 
-# Editor directories and files
+# Environment variables — NEVER commit secrets
+.env
+.env.*
+!.env.example
+
+# Uploads (user files — not for git)
+backend/uploads
+uploads/
+
+# Blockchain artifacts (generated, not source)
+blockchain/cache
+blockchain/artifacts/
+
+# Editor
 .vscode/*
 !.vscode/extensions.json
 .idea
@@ -23,10 +41,3 @@ dist-ssr
 *.sln
 *.sw?
 
-# Backend
-backend/node_modules
-backend/.env
-backend/uploads
-
-# Keep frontend .env since user specified it previously
-!.env

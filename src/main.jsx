@@ -2,16 +2,14 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import './index.css'
 import App from './App'
-
-// Import your publishable key
-// const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
-
-// if (!PUBLISHABLE_KEY) {
-//   throw new Error("Missing Publishable Key")
-// }
+import { GigProvider } from './context/GigContext'
+import ToastContainer from './components/Toast'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <App/>
+    <GigProvider>
+      <App />
+      <ToastContainer />
+    </GigProvider>
   </React.StrictMode>,
 )
