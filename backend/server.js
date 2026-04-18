@@ -31,8 +31,8 @@ app.use(cors({
         if (!origin) return callback(null, true);
         // Allow exact matches
         if (allowedOrigins.includes(origin)) return callback(null, true);
-        // Allow any Vercel preview deployment for this project
-        if (/^https:\/\/swa-rojgar[a-z0-9-]*\.vercel\.app$/.test(origin)) return callback(null, true);
+        // Allow any Vercel deployment (preview or production)
+        if (/^https:\/\/[a-z0-9-]+\.vercel\.app$/.test(origin)) return callback(null, true);
         callback(new Error(`CORS: origin ${origin} not allowed`));
     },
     credentials: true,
