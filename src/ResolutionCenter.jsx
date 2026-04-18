@@ -4,7 +4,7 @@ import { useGig, pushToast } from "./context/GigContext";
 import { SkeletonDisputePanel } from "./components/Skeleton";
 import Navbar from "./navbar";
 
-const ESCROW_ADDRESS = import.meta.env.VITE_ESCROW_CONTRACT_ADDRESS || "0x5996AD515E407F1569278a1642cE9f259c1010eA";
+const ESCROW_ADDRESS = (import.meta.env.VITE_ESCROW_CONTRACT_ADDRESS || "0x5996AD515E407F1569278a1642cE9f259c1010eA").trim();
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:5010";
 
 const ESCROW_ABI = [

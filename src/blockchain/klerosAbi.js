@@ -11,8 +11,8 @@
 
 export const CONTRACT_ADDRESSES = {
     // Ethereum Sepolia Testnet
-    escrow: import.meta.env.VITE_ESCROW_CONTRACT_ADDRESS || "0x5996AD515E407F1569278a1642cE9f259c1010eA",
-    token:  import.meta.env.VITE_TOKEN_CONTRACT_ADDRESS  || "0xfdA41C31D6630980352F590c753E9Ee5E2964906",
+    escrow: (import.meta.env.VITE_ESCROW_CONTRACT_ADDRESS || "0x5996AD515E407F1569278a1642cE9f259c1010eA").trim(),
+    token:  (import.meta.env.VITE_TOKEN_CONTRACT_ADDRESS || "0xfdA41C31D6630980352F590c753E9Ee5E2964906").trim(),
 
     // Kleros Court on Sepolia — used only for reading arbitrationCost()
     klerosCourt: "0x90992fb4E15ce0C59aEFfb376460Fda4Ee19C879",

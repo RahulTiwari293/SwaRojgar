@@ -19,8 +19,8 @@ import Navbar from "../navbar";
 import clientImg from "../assets/client_dashboard_hero.png";
 
 const BACKEND     = import.meta.env.VITE_BACKEND_URL || "http://localhost:5010";
-const ESCROW_ADDR = import.meta.env.VITE_ESCROW_CONTRACT_ADDRESS || "0x5996AD515E407F1569278a1642cE9f259c1010eA";
-const TOKEN_ADDR  = import.meta.env.VITE_TOKEN_CONTRACT_ADDRESS  || "0xfdA41C31D6630980352F590c753E9Ee5E2964906";
+const ESCROW_ADDR = (import.meta.env.VITE_ESCROW_CONTRACT_ADDRESS || "0x5996AD515E407F1569278a1642cE9f259c1010eA").trim();
+const TOKEN_ADDR  = (import.meta.env.VITE_TOKEN_CONTRACT_ADDRESS  || "0xfdA41C31D6630980352F590c753E9Ee5E2964906").trim();
 const RPC_URL     = import.meta.env.VITE_RPC_URL || "https://rpc.sepolia.org";
 // Read-only provider — avoids MetaMask popup for failed view calls
 const readProvider = new ethers.JsonRpcProvider(RPC_URL);
