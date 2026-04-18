@@ -285,7 +285,7 @@ app.post('/api/users/clerk-sync', async (req, res) => {
         const email      = clerkUser.emailAddresses?.[0]?.emailAddress;
         const firstName  = clerkUser.firstName || '';
         const lastName   = clerkUser.lastName  || '';
-        const { userType } = req.body; // passed on first signup (onboarding)
+        const userType = req.body?.userType; // passed on first signup (onboarding)
 
         if (!email) return res.status(400).json({ message: 'No email on Clerk account' });
 
