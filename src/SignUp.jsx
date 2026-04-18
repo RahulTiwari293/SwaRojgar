@@ -1,178 +1,75 @@
-import React, { useState } from "react";
-import signupImage from "./assets/signup.png";
-import { FaGooglePlusG } from "react-icons/fa";
-import { useNavigate } from 'react-router-dom';
-import { BsMicrosoft } from "react-icons/bs";
-import { FaMeta } from "react-icons/fa6";
+import React from "react";
+import { SignUp } from "@clerk/clerk-react";
+import logo from "./assets/logo.png";
 
-function SignUp() {
-    const navigate = useNavigate();
-    const [formData, setFormData] = useState({
-        firstName: "",
-        lastName: "",
-        email: "",
-        password: "",
-        phoneNumber: "",
-        userType: "client",
-    });
+export default function SignUpPage() {
+  return (
+    <div className="min-h-screen flex bg-white dark:bg-gray-950">
 
-    const handleChange = (e) => {
-        const { name, value } = e.target;
-        setFormData({ ...formData, [name]: value });
-    };
+      {/* ── Left branding panel ─────────────────────────────────────────── */}
+      <div className="hidden lg:flex w-5/12 bg-black flex-col justify-between p-12 relative overflow-hidden shrink-0">
+        <div className="absolute inset-0 pointer-events-none"
+          style={{ backgroundImage: "radial-gradient(circle, #ffffff18 1.5px, transparent 1.5px)", backgroundSize: "28px 28px" }} />
+        <div className="absolute -top-32 -left-32 w-[400px] h-[400px] rounded-full border border-white/5" />
+        <div className="absolute -bottom-20 -right-20 w-[300px] h-[300px] rounded-full border border-white/5" />
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        try {
-            const response = await fetch('http://localhost:5010/signup', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(formData),
-            });
-
-            const data = await response.json();
-            if (response.ok) {
-                console.log("User registered:", data);
-
-                // Save userId and userType to localStorage for creating posts
-                if (data.userId) {
-                    localStorage.setItem("userId", data.userId);
-                }
-                localStorage.setItem("userType", formData.userType);
-
-                // Navigate to the correct dashboard based on userType
-                if (formData.userType === "client") {
-                    navigate("/client-dashboard");
-                } else if (formData.userType === "freelancer") {
-                    // navigate("/freelancer-dashboard");
-                    navigate("/");
-                }
-            } else {
-                console.error("Registration error:", data);
-                alert("Registration failed: " + (data.message || "Unknown error"));
-            }
-        } catch (error) {
-            console.error("Error:", error);
-            alert("An error occurred during registration.");
-        }
-    };
-
-    return (
-        <div className="flex justify-center items-center min-h-screen bg-gradient-to-r from-purple-300 to-blue-300">
-            <div className="m-[5vw] w-[90vw] max-w-[1200px] flex justify-center items-center border-2 p-[2vw] rounded-3xl bg-white shadow-lg transition-all duration-500 ease-in-out transform">
-                <div className="hidden md:block w-1/2 p-2">
-                    <img
-                        src={signupImage}
-                        alt="Sign Up Page"
-                        className="w-full rounded-xl shadow-xl hover:shadow-2xl transition-shadow duration-500"
-                    />
-                </div>
-                <div className="w-full md:w-1/2 p-5">
-                    <h4 className="text-5xl font-bold mb-4 text-gray-800">Create Account</h4>
-                    <h5 className="text-lg mb-6 text-gray-600">Join us and start your journey!</h5>
-                    <form onSubmit={handleSubmit}>
-                        <div className="flex gap-4 w-full md:w-3/4">
-                            <input
-                                type="text"
-                                name="firstName"
-                                placeholder="First Name"
-                                value={formData.firstName}
-                                onChange={handleChange}
-                                className="w-1/2 p-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all duration-300"
-                            />
-                            <input
-                                type="text"
-                                name="lastName"
-                                placeholder="Last Name"
-                                value={formData.lastName}
-                                onChange={handleChange}
-                                className="w-1/2 p-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all duration-300"
-                            />
-                        </div>
-                        <input
-                            type="email"
-                            name="email"
-                            placeholder="Email"
-                            value={formData.email}
-                            onChange={handleChange}
-                            className="w-full md:w-3/4 mt-4 p-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all duration-300"
-                        />
-                        <input
-                            type="password"
-                            name="password"
-                            placeholder="Password"
-                            value={formData.password}
-                            onChange={handleChange}
-                            className="w-full md:w-3/4 mt-4 p-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all duration-300"
-                        />
-                        <input
-                            type="tel"
-                            name="phoneNumber"
-                            placeholder="Mobile Number"
-                            value={formData.phoneNumber}
-                            onChange={handleChange}
-                            className="w-full md:w-3/4 mt-4 p-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all duration-300"
-                        />
-
-                        {/* Radio buttons for user type selection */}
-                        <div className="flex items-center gap-4 mt-4 w-full md:w-3/4">
-                            <label className="flex items-center">
-                                <input
-                                    type="radio"
-                                    name="userType"
-                                    value="client"
-                                    checked={formData.userType === "client"}
-                                    onChange={handleChange}
-                                    className="mr-2"
-                                />
-                                Are you a client
-                            </label>
-                            <label className="flex items-center">
-                                <input
-                                    type="radio"
-                                    name="userType"
-                                    value="freelancer"
-                                    checked={formData.userType === "freelancer"}
-                                    onChange={handleChange}
-                                    className="mr-2"
-                                />
-                                Are you a freelancer
-                            </label>
-                        </div>
-
-                        <button
-                            type="submit"
-                            className="w-full md:w-3/4 mt-6 p-4 rounded-lg bg-purple-500 hover:bg-purple-600 transition-all duration-300 transform hover:scale-105 text-white font-bold"
-                        >
-                            Sign Up
-                        </button>
-                    </form>
-                    <div className="mt-4 text-start">
-                        Already have an account?{' '}
-                        <button
-                            onClick={() => navigate("/Login")}
-                            className="text-purple-600 hover:underline font-semibold"
-                        >
-                            Sign in
-                        </button>
-                    </div>
-                    <div className="flex justify-center gap-8 md:w-3/4 mt-5 ">
-                        <button className="bg-white p-4 rounded-full transition-transform duration-500 hover:scale-110 shadow-lg hover:shadow-2xl">
-                            <FaGooglePlusG className="text-3xl text-red-500" />
-                        </button>
-                        <button className="bg-white p-4 rounded-full transition-transform duration-500 hover:scale-110 shadow-lg hover:shadow-2xl">
-                            <FaMeta className="text-3xl text-blue-500" />
-                        </button>
-                        <button className="bg-white p-4 rounded-full transition-transform duration-500 hover:scale-110 shadow-lg hover:shadow-2xl">
-                            <BsMicrosoft className="text-3xl text-green-500" />
-                        </button>
-                    </div>
-                </div>
-            </div>
+        <div className="relative">
+          <img src={logo} alt="SwaRojgar" className="h-9 w-auto object-contain brightness-0 invert" />
         </div>
-    );
-}
 
-export default SignUp;
+        <div className="relative space-y-6">
+          <h1 className="text-4xl font-black text-white leading-tight">
+            Start earning<br />on your own<br />terms.
+          </h1>
+          <p className="text-white/50 text-base leading-relaxed max-w-xs">
+            Join thousands of freelancers and clients on India's first decentralized gig platform.
+          </p>
+          <div className="space-y-3 pt-2">
+            {[
+              ["🔐", "Escrow-protected payments"],
+              ["🤖", "AI-powered dispute resolution"],
+              ["⚖️", "Kleros Court as final fallback"],
+            ].map(([icon, text]) => (
+              <div key={text} className="flex items-center gap-3">
+                <span className="text-lg">{icon}</span>
+                <span className="text-white/60 text-sm">{text}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <p className="relative text-white/20 text-xs">© 2025 SwaRojgar. Built on Ethereum Sepolia.</p>
+      </div>
+
+      {/* ── Right: Clerk SignUp ──────────────────────────────────────────── */}
+      <div className="flex-1 flex items-center justify-center px-6 py-10 overflow-y-auto">
+        <div className="w-full max-w-md">
+          <div className="lg:hidden mb-6">
+            <img src={logo} alt="SwaRojgar" className="h-8 w-auto object-contain dark:brightness-0 dark:invert" />
+          </div>
+          <SignUp
+            routing="path"
+            path="/signup"
+            afterSignUpUrl="/onboarding"
+            signInUrl="/login"
+            appearance={{
+              elements: {
+                rootBox: "w-full",
+                card: "bg-transparent shadow-none p-0",
+                headerTitle: "text-gray-900 dark:text-white font-black text-2xl",
+                headerSubtitle: "text-gray-400 dark:text-white/40 text-sm",
+                socialButtonsBlockButton: "border border-white/10 bg-white/5 hover:bg-white/10 text-white rounded-xl",
+                formButtonPrimary: "bg-black dark:bg-white text-white dark:text-black font-bold rounded-xl hover:bg-gray-800",
+                formFieldInput: "bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 text-gray-900 dark:text-white rounded-xl px-4 py-2.5 text-sm",
+                formFieldLabel: "text-gray-500 dark:text-white/40 text-xs font-semibold uppercase tracking-wide",
+                footerActionLink: "text-black dark:text-white font-bold",
+                identityPreviewText: "text-white",
+                identityPreviewEditButton: "text-white/60",
+              }
+            }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}

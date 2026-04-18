@@ -1,6 +1,12 @@
-const { ethers } = require('ethers');
 const fs = require('fs');
 const path = require('path');
+
+// Lazy-load ethers (large package — defers ~2min init cost to first use)
+let _ethers;
+function getEthers() {
+    if (!_ethers) _ethers = require('ethers').ethers;
+    return _ethers;
+}
 
 // Load contract ABIs
 const tokenABI = require('../../blockchain/artifacts/contracts/SwaRojgarToken.sol/SwaRojgarToken.json').abi;
@@ -21,6 +27,7 @@ class BlockchainService {
         try {
             // Connect to blockchain network
             const rpcUrl = process.env.BLOCKCHAIN_RPC_URL || 'http://127.0.0.1:8545';
+            const ethers = getEthers();
             this.provider = new ethers.JsonRpcProvider(rpcUrl);
 
             // Get contract addresses from environment
@@ -59,7 +66,7 @@ class BlockchainService {
             if (!this.initialized) await this.initialize();
 
             const balance = await this.tokenContract.balanceOf(address);
-            return ethers.formatEther(balance);
+            return getEthers().formatEther(balance);
         } catch (error) {
             console.error('Error getting token balance:', error);
             throw error;
@@ -77,11 +84,12 @@ class BlockchainService {
 
             return {
                 gigId: gig.gigId,
-                customer: gig.customer,
+                gigNumber: Number(gig.gigNumber),
+                client: gig.client,
                 freelancer: gig.freelancer,
-                amount: ethers.formatEther(gig.amount),
+                amount: getEthers().formatEther(gig.amount),
                 status: this.getStatusName(Number(gig.status)),
-                ipfsHash: gig.ipfsHash,
+                proofIpfsHash: gig.proofIpfsHash,
                 createdAt: Number(gig.createdAt),
                 deadline: Number(gig.deadline)
             };
@@ -95,7 +103,7 @@ class BlockchainService {
      * Get status name from enum value
      */
     getStatusName(statusValue) {
-        const statuses = ['OPEN', 'ASSIGNED', 'PROOF_SUBMITTED', 'COMPLETED', 'DISPUTED', 'CANCELLED'];
+        const statuses = ['OPEN', 'ASSIGNED', 'PROOF_SUBMITTED', 'DISPUTED_AI', 'DISPUTED_KLEROS', 'DISPUTED_HUMAN', 'COMPLETED', 'REFUNDED'];
         return statuses[statusValue] || 'UNKNOWN';
     }
 
@@ -107,7 +115,7 @@ class BlockchainService {
         if (!privateKey) {
             throw new Error('ADMIN_PRIVATE_KEY not set in environment');
         }
-        return new ethers.Wallet(privateKey, this.provider);
+        return new (getEthers().Wallet)(privateKey, this.provider);
     }
 
     /**
@@ -117,14 +125,15 @@ class BlockchainService {
         if (!this.initialized) await this.initialize();
 
         // Listen to GigCreated events
-        this.escrowContract.on('GigCreated', (gigId, customer, amount, deadline, event) => {
+        this.escrowContract.on('GigCreated', (gigId, client, amount, deadline, gigNumber, event) => {
             console.log('📢 GigCreated event:', gigId);
             if (eventHandlers.onGigCreated) {
                 eventHandlers.onGigCreated({
                     gigId,
-                    customer,
-                    amount: ethers.formatEther(amount),
+                    client,
+                    amount: getEthers().formatEther(amount),
                     deadline: Number(deadline),
+                    gigNumber: Number(gigNumber),
                     transactionHash: event.log.transactionHash
                 });
             }
@@ -172,8 +181,8 @@ class BlockchainService {
                 eventHandlers.onPaymentReleased({
                     gigId,
                     freelancer,
-                    amount: ethers.formatEther(amount),
-                    platformFee: ethers.formatEther(platformFee),
+                    amount: getEthers().formatEther(amount),
+                    platformFee: getEthers().formatEther(platformFee),
                     transactionHash: event.log.transactionHash
                 });
             }

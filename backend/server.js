@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('dotenv').config({ path: require('path').resolve(__dirname, '.env') });
 const express = require('express');
 const mongoose = require('mongoose');
 const bodyParser = require('body-parser');
@@ -10,14 +10,29 @@ const postRoutes = require('./routes/posts');
 const blockchainRoutes = require('./routes/blockchain');
 const disputeRoutes = require('./routes/dispute');
 const blockchainService = require('./blockchain/blockchainService');
+const { startEventListener } = require('./services/aiResolutionService');
 const bcrypt = require('bcrypt');
-const { generateToken } = require('./middleware/auth');
+const { generateToken, authMiddleware } = require('./middleware/auth');
 
 const app = express();
 const PORT = process.env.PORT || 5010;
 
-// Use CORS middleware
-app.use(cors());
+// CORS — whitelist frontend origins
+const allowedOrigins = [
+    'http://localhost:5173',  // Vite dev server
+    'http://localhost:5174',  // Vite dev server (fallback port)
+    'http://localhost:4173',  // Vite preview
+    process.env.FRONTEND_URL, // production URL (set in .env)
+].filter(Boolean);
+
+app.use(cors({
+    origin: (origin, callback) => {
+        // Allow requests with no origin (Postman, server-to-server)
+        if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+        callback(new Error(`CORS: origin ${origin} not allowed`));
+    },
+    credentials: true,
+}));
 
 // Middleware
 app.use(bodyParser.json());
@@ -242,10 +257,102 @@ app.patch('/api/users/:userId/profile', async (req, res) => {
 
 
 
+// ===== CLERK AUTH SYNC =====
+// Called after every Clerk sign-in/sign-up to sync the Clerk user to MongoDB.
+// Verifies the Clerk session token, then finds-or-creates the MongoDB user.
+// Returns our own JWT so the rest of the app can stay unchanged.
+app.post('/api/users/clerk-sync', async (req, res) => {
+    try {
+        const authHeader = req.headers['authorization'];
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ message: 'No Clerk token provided' });
+        }
+        const clerkToken = authHeader.slice(7);
+
+        // Verify with Clerk SDK
+        const { verifyToken, createClerkClient } = require('@clerk/backend');
+        const clerk = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY });
+
+        let clerkUser;
+        try {
+            const payload = await verifyToken(clerkToken, { secretKey: process.env.CLERK_SECRET_KEY });
+            clerkUser = await clerk.users.getUser(payload.sub);
+        } catch (err) {
+            return res.status(401).json({ message: 'Invalid Clerk token' });
+        }
+
+        const email      = clerkUser.emailAddresses?.[0]?.emailAddress;
+        const firstName  = clerkUser.firstName || '';
+        const lastName   = clerkUser.lastName  || '';
+        const { userType } = req.body; // passed on first signup (onboarding)
+
+        if (!email) return res.status(400).json({ message: 'No email on Clerk account' });
+
+        // Find or create MongoDB user
+        let user = await User.findOne({ email });
+        const isNew = !user;
+
+        if (isNew) {
+            if (!userType) {
+                // New user — needs onboarding (role selection)
+                return res.status(202).json({ needsOnboarding: true, email, firstName, lastName });
+            }
+            const hashedPassword = await bcrypt.hash(clerkUser.id, 10); // unusable password
+            user = new User({ firstName, lastName, email, phoneNumber: '', password: hashedPassword, userType });
+            await user.save();
+        }
+
+        // Issue our JWT
+        const token = generateToken(user._id, user.userType);
+        res.json({
+            token,
+            userId:      user._id,
+            userType:    user.userType,
+            firstName:   user.firstName,
+            lastName:    user.lastName,
+            profilePhoto: user.profilePhoto,
+            walletAddress: user.walletAddress,
+        });
+    } catch (error) {
+        console.error('Clerk sync error:', error.message);
+        res.status(500).json({ message: 'Sync failed', error: error.message });
+    }
+});
+
+// ===== SRT FAUCET =====
+// Mints 1000 SRT to a wallet address — testnet only, admin-key protected.
+// Called from the frontend "Get Test SRT" button.
+app.post('/api/faucet', async (req, res) => {
+    try {
+        const { walletAddress, adminKey } = req.body;
+        if (!walletAddress) return res.status(400).json({ message: 'walletAddress is required' });
+
+        // Simple rate-limiting by admin key — replace with per-wallet cooldown in prod
+        if (adminKey !== process.env.ADMIN_SECRET) {
+            return res.status(403).json({ message: 'Forbidden — invalid admin key' });
+        }
+
+        const { ethers } = require('ethers');
+        const provider = new ethers.JsonRpcProvider(process.env.BLOCKCHAIN_RPC_URL);
+        const signer   = new ethers.Wallet(process.env.BLOCKCHAIN_PRIVATE_KEY, provider);
+        const tokenABI = ['function mint(address to, uint256 amount) external'];
+        const token    = new ethers.Contract(process.env.TOKEN_CONTRACT_ADDRESS, tokenABI, signer);
+
+        const amount = ethers.parseEther('1000'); // 1000 SRT per request
+        const tx     = await token.mint(walletAddress, amount);
+        const receipt = await tx.wait();
+
+        res.json({ message: '1000 SRT minted successfully', txHash: receipt.hash, walletAddress });
+    } catch (error) {
+        console.error('Faucet error:', error.message);
+        res.status(500).json({ message: 'Faucet failed', error: error.message });
+    }
+});
+
 // ===== JOB MANAGEMENT ENDPOINTS =====
 
 // Accept a job (freelancer applies)
-app.patch('/api/jobs/:jobId/accept', async (req, res) => {
+app.patch('/api/jobs/:jobId/accept', authMiddleware, async (req, res) => {
     try {
         const { jobId } = req.params;
         const { freelancerId, freelancerWallet, txHash } = req.body;
@@ -276,7 +383,7 @@ app.patch('/api/jobs/:jobId/accept', async (req, res) => {
     }
 });
 
-// Get available jobs for freelancers (only OPEN jobs)
+// Get available jobs for freelancers (public — no auth required for browsing)
 app.get('/api/jobs/available', async (req, res) => {
     try {
         const jobs = await Post.find({
@@ -294,7 +401,7 @@ app.get('/api/jobs/available', async (req, res) => {
 });
 
 // Get freelancer's assigned jobs
-app.get('/api/jobs/freelancer/:userId', async (req, res) => {
+app.get('/api/jobs/freelancer/:userId', authMiddleware, async (req, res) => {
     try {
         const { userId } = req.params;
 
@@ -313,7 +420,7 @@ app.get('/api/jobs/freelancer/:userId', async (req, res) => {
 });
 
 // Get customer's posted jobs
-app.get('/api/jobs/customer/:userId', async (req, res) => {
+app.get('/api/jobs/customer/:userId', authMiddleware, async (req, res) => {
     try {
         const { userId } = req.params;
 
@@ -332,7 +439,7 @@ app.get('/api/jobs/customer/:userId', async (req, res) => {
 });
 
 // Update job status
-app.patch('/api/jobs/:jobId/status', async (req, res) => {
+app.patch('/api/jobs/:jobId/status', authMiddleware, async (req, res) => {
     try {
         const { jobId } = req.params;
         const { status, proofIpfsHash, proofDescription, txHash } = req.body;
@@ -371,7 +478,7 @@ app.patch('/api/jobs/:jobId/status', async (req, res) => {
 });
 
 // Get job details with proof
-app.get('/api/jobs/:jobId/details', async (req, res) => {
+app.get('/api/jobs/:jobId/details', authMiddleware, async (req, res) => {
     try {
         const { jobId } = req.params;
 
@@ -392,12 +499,21 @@ app.get('/api/jobs/:jobId/details', async (req, res) => {
 
 // ===== SERVER START =====
 
-// Initialize blockchain service
+// Initialize blockchain service + start AI dispute event listener
 blockchainService.initialize()
     .then(() => {
-        console.log('✅ Blockchain connected:', blockchainService.getNetworkName(), `(Chain ID: ${blockchainService.getChainId()})`);
+        console.log('✅ Blockchain connected on Sepolia');
         console.log('📝 Token Contract:', process.env.TOKEN_CONTRACT_ADDRESS);
         console.log('📝 Escrow Contract:', process.env.ESCROW_CONTRACT_ADDRESS);
+
+        // Start AI resolution event listener (watches for DisputeRaisedAI events)
+        if (process.env.GROK_API_KEY && process.env.BLOCKCHAIN_PRIVATE_KEY) {
+            startEventListener()
+                .then(() => console.log('🤖 AI Dispute Resolver: listening for events'))
+                .catch(err => console.error('⚠️  AI event listener failed to start:', err.message));
+        } else {
+            console.warn('⚠️  AI event listener disabled — set GROK_API_KEY and BLOCKCHAIN_PRIVATE_KEY in .env');
+        }
     })
     .catch(err => {
         console.error('⚠️  Blockchain connection failed:', err.message);

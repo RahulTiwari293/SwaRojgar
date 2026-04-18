@@ -42,16 +42,16 @@ function Toast({ toast }) {
             text:   "text-amber-200"
         },
         info: {
-            border: "border-violet-500/30",
-            bg:     "bg-slate-900/90",
+            border: "border-white/20",
+            bg:     "bg-gray-900/90",
             icon:   "ℹ️",
             text:   "text-white/80"
         },
         loading: {
-            border: "border-cyan-500/30",
-            bg:     "bg-slate-900/90",
+            border: "border-white/20",
+            bg:     "bg-gray-900/90",
             icon:   "⏳",
-            text:   "text-cyan-200"
+            text:   "text-white/70"
         }
     };
 

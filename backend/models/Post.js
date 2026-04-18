@@ -9,6 +9,11 @@ const postSchema = new mongoose.Schema({
     createdAt: { type: Date, default: Date.now },
     image: { type: String },
 
+    // ── Gig ID — mirrors _id as a string for blockchain lookups ──────────
+    // Set automatically in pre-save hook. Used by dispute.js and blockchain
+    // routes that query Post.findOne({ gigId }) using the MongoDB ObjectId string.
+    gigId: { type: String, index: true, sparse: true },
+
     // ── Gig Number (human-readable sequential ID) ─────────────────────────
     // Auto-assigned on creation: Gig #1, #2, #3...
     // Only applies to postType === 'job'
@@ -43,16 +48,22 @@ const postSchema = new mongoose.Schema({
     deadline: { type: Number } // Unix timestamp
 });
 
-// ─── Auto-assign gigNumber on new job posts ───────────────────────────────────
+// ─── Auto-assign gigId and gigNumber on new job posts ────────────────────────
 postSchema.pre('save', async function (next) {
-    // Only assign gigNumber to new job posts that don't have one yet
-    if (this.isNew && this.postType === 'job' && !this.gigNumber) {
-        try {
-            // Count existing jobs to derive the next number
-            const count = await mongoose.model('Post').countDocuments({ postType: 'job' });
-            this.gigNumber = count + 1;
-        } catch (err) {
-            return next(err);
+    if (this.isNew) {
+        // gigId mirrors the MongoDB _id as a plain string — used by blockchain routes
+        if (!this.gigId) {
+            this.gigId = this._id.toString();
+        }
+
+        // gigNumber: sequential human-readable counter for job posts
+        if (this.postType === 'job' && !this.gigNumber) {
+            try {
+                const count = await mongoose.model('Post').countDocuments({ postType: 'job' });
+                this.gigNumber = count + 1;
+            } catch (err) {
+                return next(err);
+            }
         }
     }
     next();

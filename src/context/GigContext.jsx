@@ -162,6 +162,14 @@ export function GigProvider({ children }) {
                     method: "PATCH",
                     headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
                     body: JSON.stringify({ walletAddress: address })
+                }).then(r => {
+                    if (r.status === 404) {
+                        // Stale session — clear and redirect to login
+                        localStorage.removeItem("userId");
+                        localStorage.removeItem("token");
+                        localStorage.removeItem("userType");
+                        window.location.href = "/login";
+                    }
                 }).catch(() => {}); // non-fatal
             }
         } catch (e) {

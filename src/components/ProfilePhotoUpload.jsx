@@ -60,7 +60,7 @@ function ProfilePhotoUpload({ userId, currentPhoto, onPhotoUpdated }) {
 
     return (
         <div className="relative inline-block">
-            <div className="relative w-40 h-40 rounded-full overflow-hidden border-4 border-purple-400 shadow-lg">
+            <div className="relative w-40 h-40 rounded-full overflow-hidden border-4 border-gray-200 dark:border-white/20 shadow-lg">
                 {preview ? (
                     <img
                         src={preview}
@@ -68,7 +68,7 @@ function ProfilePhotoUpload({ userId, currentPhoto, onPhotoUpdated }) {
                         className="w-full h-full object-cover"
                     />
                 ) : (
-                    <div className="w-full h-full bg-gradient-to-br from-purple-400 to-blue-400 flex items-center justify-center text-white text-4xl font-bold">
+                    <div className="w-full h-full bg-gray-900 dark:bg-white/10 flex items-center justify-center text-white text-4xl font-bold">
                         {userId ? "?" : "U"}
                     </div>
                 )}

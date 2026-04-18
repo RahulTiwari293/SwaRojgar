@@ -1,110 +1,69 @@
-import React, { useState } from "react";
-import loginImage from "./assets/loginpage.png";
-import { FaGooglePlusG } from "react-icons/fa";
-import { useNavigate } from "react-router-dom";
-import { FaMeta } from "react-icons/fa6";
-import { BsMicrosoft } from "react-icons/bs";
+import React from "react";
+import { SignIn } from "@clerk/clerk-react";
+import logo from "./assets/logo.png";
 
-function Login() {
-  const navigate = useNavigate();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      const response = await fetch("http://localhost:5010/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email, password }),
-      });
-
-      const data = await response.json();
-      if (response.ok) {
-        console.log("Login successful:", data);
-
-        // Save userId to localStorage for creating posts
-        if (data.userId) {
-          localStorage.setItem("userId", data.userId);
-        }
-        if (data.userType) {
-          localStorage.setItem("userType", data.userType);
-        }
-
-        if (data.userType === 'client') {
-          navigate("/client-dashboard");
-        } else if (data.userType === 'freelancer') {
-          navigate("/");
-        }
-      } else {
-        console.error("Login failed:", data.message);
-        alert("Invalid email or password.");
-      }
-    } catch (error) {
-      console.error("Error:", error);
-      alert("An error occurred during login.");
-    }
-  };
-
-
+export default function Login() {
   return (
-    <div className="m-[5vw] ml-[10vw] w-[90vw] max-w-[1200px] flex justify-center items-center border-2 p-[2vw] rounded-3xl bg-gradient-to-r from-purple-300 to-blue-300 shadow-lg transition-all duration-500 ease-in-out transform ">
-      {/* Image section */}
-      <div className="hidden md:block w-1/2 p-5">
-        <img src={loginImage} alt="Login Page" className="w-full rounded-xl shadow-xl hover:shadow-2xl transition-shadow duration-500" />
-      </div>
-      {/* Main section */}
-      <div className="w-full md:w-1/2 p-5">
-        <h4 className="text-5xl font-bold mb-4 text-white">Hello Again!</h4>
-        <h5 className="text-lg mb-6 text-white">Welcome back, you've been missed!</h5>
-        <form onSubmit={handleSubmit}>
-          <input
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full md:w-3/4 mb-4 p-4 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all duration-300"
-          />
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full md:w-3/4 mb-6 p-4 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all duration-300"
-          />
-          <button
-            type="submit"
-            className="w-full md:w-3/4 p-4 rounded-lg bg-purple-500 hover:bg-purple-600 transition-all duration-300 transform hover:scale-105 text-white font-bold"
-          >
-            Login
-          </button>
-        </form>
-        <div className="mt-4 text-center md:w-3/4">
-          Don't have an account?{' '}
-          <button
-            onClick={() => navigate("/signup")}
-            className="text-purple-600 hover:underline font-semibold"
-          >
-            Sign up
-          </button>
+    <div className="min-h-screen flex bg-white dark:bg-gray-950">
+
+      {/* ── Left branding panel ─────────────────────────────────────────── */}
+      <div className="hidden lg:flex w-1/2 bg-black flex-col justify-between p-12 relative overflow-hidden">
+        <div className="absolute inset-0 pointer-events-none"
+          style={{ backgroundImage: "radial-gradient(circle, #ffffff18 1.5px, transparent 1.5px)", backgroundSize: "28px 28px" }} />
+        <div className="absolute -bottom-32 -right-32 w-[500px] h-[500px] rounded-full border border-white/5" />
+        <div className="absolute -bottom-16 -right-16 w-[350px] h-[350px] rounded-full border border-white/5" />
+
+        <div className="relative">
+          <img src={logo} alt="SwaRojgar" className="h-9 w-auto object-contain brightness-0 invert" />
         </div>
-        <div className="md:w-3/4 flex justify-center gap-8 mt-8">
-          <button className="bg-white p-4 rounded-full transition-transform duration-500 hover:scale-110 shadow-lg hover:shadow-2xl">
-            <FaGooglePlusG className="text-3xl text-red-500" />
-          </button>
-          <button className="bg-white p-4 rounded-full transition-transform duration-500 hover:scale-110 shadow-lg hover:shadow-2xl">
-            <FaMeta className="text-3xl text-blue-500" />
-          </button>
-          <button className="bg-white p-4 rounded-full transition-transform duration-500 hover:scale-110 shadow-lg hover:shadow-2xl">
-            <BsMicrosoft className="text-3xl text-green-500" />
-          </button>
+
+        <div className="relative space-y-6">
+          <h1 className="text-5xl font-black text-white leading-tight">
+            The future of<br />freelancing is<br />on-chain.
+          </h1>
+          <p className="text-white/50 text-lg leading-relaxed max-w-sm">
+            Trustless escrow, AI arbitration, and Kleros Court — all in one platform.
+          </p>
+          <div className="grid grid-cols-3 gap-6 pt-4">
+            {[["100%","Trustless"],["3-Tier","Dispute System"],["SRT","Token Rewards"]].map(([val, label]) => (
+              <div key={label}>
+                <p className="text-2xl font-black text-white">{val}</p>
+                <p className="text-white/40 text-xs mt-0.5">{label}</p>
+              </div>
+            ))}
+          </div>
         </div>
+
+        <p className="relative text-white/20 text-xs">© 2025 SwaRojgar. Decentralized. Transparent.</p>
       </div>
 
+      {/* ── Right: Clerk SignIn ──────────────────────────────────────────── */}
+      <div className="flex-1 flex items-center justify-center px-6 py-12">
+        <div className="w-full max-w-sm">
+          <div className="lg:hidden mb-8">
+            <img src={logo} alt="SwaRojgar" className="h-8 w-auto object-contain dark:brightness-0 dark:invert" />
+          </div>
+          <SignIn
+            routing="path"
+            path="/login"
+            afterSignInUrl="/auth-callback"
+            signUpUrl="/signup"
+            appearance={{
+              elements: {
+                rootBox: "w-full",
+                card: "bg-transparent shadow-none p-0",
+                headerTitle: "text-gray-900 dark:text-white font-black text-2xl",
+                headerSubtitle: "text-gray-400 dark:text-white/40 text-sm",
+                socialButtonsBlockButton: "border border-white/10 bg-white/5 hover:bg-white/10 text-white rounded-xl",
+                formButtonPrimary: "bg-black dark:bg-white text-white dark:text-black font-bold rounded-xl hover:bg-gray-800",
+                formFieldInput: "bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 text-gray-900 dark:text-white rounded-xl px-4 py-2.5 text-sm",
+                formFieldLabel: "text-gray-500 dark:text-white/40 text-xs font-semibold uppercase tracking-wide",
+                footerActionLink: "text-black dark:text-white font-bold",
+              }
+            }}
+          />
+        </div>
+      </div>
     </div>
   );
 }
-
-export default Login;

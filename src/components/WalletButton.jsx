@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
+import { pushToast } from '../context/GigContext';
 import './WalletButton.css';
+
+const BACKEND = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5010';
 
 function WalletButton() {
     const [account, setAccount] = useState(null);
@@ -106,6 +109,30 @@ function WalletButton() {
         window.open(`https://sepolia.etherscan.io/address/${account}`, '_blank');
     };
 
+    const getTestSRT = async () => {
+        setShowDropdown(false);
+        try {
+            pushToast('⏳ Requesting 1000 test SRT...', 'loading', 10000);
+            const res = await fetch(`${BACKEND}/api/faucet`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    walletAddress: account,
+                    adminKey: 'swarojgar_admin_secret_change_in_prod',
+                }),
+            });
+            const data = await res.json();
+            if (res.ok) {
+                pushToast(`✅ 1000 SRT sent! TX: ${data.txHash?.slice(0, 10)}...`, 'success', 6000);
+                setTimeout(fetchBalance, 5000); // refresh balance after ~1 block
+            } else {
+                pushToast(data.message || 'Faucet failed', 'error');
+            }
+        } catch (e) {
+            pushToast('Faucet request failed: ' + e.message, 'error');
+        }
+    };
+
     if (!account) {
         return (
             <button
@@ -160,6 +187,14 @@ function WalletButton() {
                     >
                         <span>🔍</span>
                         View on Explorer
+                    </button>
+
+                    <button
+                        className="dropdown-item"
+                        onClick={getTestSRT}
+                    >
+                        <span>🪙</span>
+                        Get 1000 Test SRT
                     </button>
 
                     <button

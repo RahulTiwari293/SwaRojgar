@@ -3,28 +3,21 @@ import Navbar from "./navbar";
 import Leftbar from "./leftbar";
 import Postbar from "./Postbar";
 import Rightbar from "./Rightbar";
-import DashboardWidgets from "./components/DashboardWidgets";
 
 function Home() {
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 transition-colors">
       <Navbar />
 
-      {/* Dashboard Widgets - Full Width with Max Container */}
-      <div className="w-full bg-white border-b border-gray-200">
-        <DashboardWidgets />
-      </div>
-
-      {/* Main Content Grid - Consistent Width */}
       <div className="max-w-[1400px] mx-auto px-6 py-6">
         <div className="flex gap-6">
-          <div className="w-1/4">
+          <div className="hidden lg:block w-1/4">
             <Leftbar />
           </div>
-          <div className="w-2/4">
+          <div className="flex-1 lg:w-2/4">
             <Postbar />
           </div>
-          <div className="w-1/4">
+          <div className="hidden xl:block w-1/4">
             <Rightbar />
           </div>
         </div>

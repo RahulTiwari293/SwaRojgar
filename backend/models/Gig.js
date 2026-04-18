@@ -39,7 +39,7 @@ const gigSchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        enum: ['OPEN', 'ASSIGNED', 'PROOF_SUBMITTED', 'COMPLETED', 'DISPUTED', 'CANCELLED'],
+        enum: ['OPEN', 'ASSIGNED', 'PROOF_SUBMITTED', 'DISPUTED_AI', 'DISPUTED_KLEROS', 'DISPUTED_HUMAN', 'COMPLETED', 'REFUNDED', 'CANCELLED'],
         default: 'OPEN'
     },
     blockchainTxHash: {

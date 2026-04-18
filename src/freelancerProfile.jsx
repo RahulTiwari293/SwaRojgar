@@ -1,257 +1,123 @@
 import React, { useState, useEffect } from "react";
-import { Pie } from "react-chartjs-2";
-import { Chart as ChartJS, ArcElement, Tooltip, Legend } from "chart.js";
-import { IoLogoInstagram } from "react-icons/io5";
-import { BiLogoLinkedin } from "react-icons/bi";
 import Navbar from "./navbar";
 import ProfilePhotoUpload from "./components/ProfilePhotoUpload";
-import WalletSection from "./components/blockchain/WalletSection";
 import axios from "axios";
 
-ChartJS.register(ArcElement, Tooltip, Legend);
+const API = import.meta.env.VITE_BACKEND_URL || "http://localhost:5010";
 
-const Profile = () => {
+export default function FreelancerProfile() {
   const [userData, setUserData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [srtBalance, setSrtBalance] = useState('0');
+  const [loading, setLoading]   = useState(true);
 
   useEffect(() => {
-    const fetchUserData = async () => {
-      try {
-        const userId = localStorage.getItem("userId");
-        if (!userId) {
-          console.error("No userId found in localStorage");
-          setLoading(false);
-          return;
-        }
-
-        const response = await axios.get(`http://localhost:5010/api/users/${userId}`);
-        setUserData(response.data);
-      } catch (error) {
-        console.error("Error fetching user data:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchUserData();
+    const userId = localStorage.getItem("userId");
+    if (!userId) { setLoading(false); return; }
+    axios.get(`${API}/api/users/${userId}`)
+      .then(r => setUserData(r.data))
+      .catch(console.error)
+      .finally(() => setLoading(false));
   }, []);
 
-  const handlePhotoUpdated = (photoPath) => {
-    setUserData(prev => ({ ...prev, profilePhoto: photoPath }));
-  };
+  const handlePhotoUpdated = (path) => setUserData(p => ({ ...p, profilePhoto: path }));
 
-  const handleBalanceUpdate = (balance) => {
-    setSrtBalance(balance);
-  };
+  if (loading) return (
+    <div className="min-h-screen bg-white dark:bg-gray-950 flex items-center justify-center">
+      <div className="w-12 h-12 border-4 border-black dark:border-white border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
 
-  const data = {
-    labels: ["SEO", "Web Development", "Logo Design"],
-    datasets: [
-      {
-        data: [300, 500, 200],
-        backgroundColor: ["#FF5722", "#03A9F4", "#8BC34A"],
-        borderColor: ["#ffffff"],
-
-        borderWidth: 2,
-        hoverOffset: 10,
-      },
-    ],
-  };
-
-  const options = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: {
-        position: "top",
-        labels: {
-          font: {
-            size: 14,
-          },
-          color: "#333",
-        },
-      },
-      tooltip: {
-        callbacks: {
-          label: (context) => {
-            const label = context.label || "";
-            const value = context.raw || 0;
-            return `${label}: ${value}`;
-          },
-        },
-        backgroundColor: "rgba(0,0,0,0.7)",
-        titleColor: "#fff",
-        bodyColor: "#fff",
-      },
-    },
-    animation: {
-      animateScale: true,
-      animateRotate: true,
-    },
-  };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-100 p-10 flex items-center justify-center">
-        <div className="text-xl text-gray-600">Loading profile...</div>
-      </div>
-    );
-  }
+  const name = userData ? `${userData.firstName} ${userData.lastName}` : "Freelancer";
+  const skills = userData?.skills?.length ? userData.skills : ["Web Development", "React", "Node.js"];
 
   return (
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 transition-colors">
+      <Navbar />
+      <div className="max-w-5xl mx-auto px-4 py-10">
 
-    <div className="min-h-screen bg-gray-100 p-10">
-      <div className="p-6 mx-auto bg-white shadow-md rounded-lg transition duration-500 hover:shadow-xl ">
-        <div className="flex gap-20 items-center justify-center">
-          <div className="w-1/4 h-screen p-4 bg-gradient-to-r from-[#cd97e1] to-white-300 text-white rounded-lg">
-            <div className="text-center mb-4">
-              <div className="flex justify-center my-10">
-                <ProfilePhotoUpload
-                  userId={userData?._id}
-                  currentPhoto={userData?.profilePhoto ? `http://localhost:5010/${userData.profilePhoto}` : null}
-                  onPhotoUpdated={handlePhotoUpdated}
-                />
-              </div>
-              <h2 className="mt-4 text-3xl font-bold text-gray-700">
-                {userData ? `${userData.firstName} ${userData.lastName}` : "User Name"}
-              </h2>
-            </div>
-
-            {/* Wallet Section */}
-            <div className="mb-6">
-              <WalletSection onBalanceUpdate={handleBalanceUpdate} />
-
-              {/* Quick Actions */}
-              <div style={{ marginTop: '2rem', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-                <button
-                  onClick={() => window.location.href = '/freelancer-jobs'}
-                  style={{
-                    flex: '1',
-                    minWidth: '180px',
-                    padding: '0.9rem 1.2rem',
-                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '0.75rem',
-                    fontSize: '0.95rem',
-                    fontWeight: '600',
-                    cursor: 'pointer',
-                    transition: 'all 0.3s ease'
-                  }}
-                  onMouseOver={(e) => e.target.style.transform = 'translateY(-2px)'}
-                  onMouseOut={(e) => e.target.style.transform = 'translateY(0)'}
-                >
-                  💼 My Jobs
-                </button>
-                <button
-                  onClick={() => window.location.href = '/work-submission'}
-                  style={{
-                    flex: '1',
-                    minWidth: '180px',
-                    padding: '0.9rem 1.2rem',
-                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '0.75rem',
-                    fontSize: '0.95rem',
-                    fontWeight: '600',
-                    cursor: 'pointer',
-                    transition: 'all 0.3s ease'
-                  }}
-                  onMouseOver={(e) => e.target.style.transform = 'translateY(-2px)'}
-                  onMouseOut={(e) => e.target.style.transform = 'translateY(0)'}
-                >
-                  📤 Submit Work
-                </button>
-              </div>
-            </div>
-
-            <div className="text-sm p-[2vw] pt-4 text-gray-700">
-              <p className="mb-5">123 Rajiv Chowk, Delhi</p>
-              <p className="mb-5">{userData?.email || "email@example.com"}</p>
-              <p className="mb-5">Cell: {userData?.phoneNumber || "+91 XXXXXXXXXX"}</p>
-            </div>
-            <div>
-              <h5 className="font-semibold text-3xl pl-[2vw] text-gray-700">Skills</h5>
-              <div className="text-md p-[2vw] pt-4 text-gray-700">
-                <ul className="list-disc list-inside">
-                  <li className="mb-5">SEO</li>
-                  <li className="mb-5">Web Development</li>
-                  <li className="mb-5">Logo Design</li>
-                </ul>
-              </div>
-            </div>
-            <div className="flex justify-start gap-5 px-6 text-gray-700">
-              <IoLogoInstagram className="text-2xl hover:cursor-pointer hover:text-green-500 transition-all ease" />
-              <BiLogoLinkedin className="text-2xl hover:cursor-pointer hover:text-green-500 transition-all ease" />
+        {/* ── Header card ─────────────────────────────────────── */}
+        <div className="bg-white dark:bg-white/5 border border-gray-100 dark:border-white/10 rounded-3xl p-8 mb-6 flex flex-col sm:flex-row items-center sm:items-start gap-6">
+          <div className="shrink-0">
+            <ProfilePhotoUpload
+              userId={userData?._id}
+              currentPhoto={userData?.profilePhoto ? `${API}/${userData.profilePhoto}` : null}
+              onPhotoUpdated={handlePhotoUpdated}
+            />
+          </div>
+          <div className="flex-1 text-center sm:text-left">
+            <h1 className="text-3xl font-black text-gray-900 dark:text-white mb-1">{name}</h1>
+            <p className="text-gray-500 dark:text-white/40 text-sm mb-1">Freelancer · SwaRojgar</p>
+            {userData?.hourlyRate && (
+              <p className="text-gray-700 dark:text-white/70 text-sm font-semibold mb-3">
+                💰 {userData.hourlyRate} SRT/hr
+              </p>
+            )}
+            {userData?.bio && (
+              <p className="text-gray-500 dark:text-white/50 text-sm leading-relaxed mb-3 max-w-lg">{userData.bio}</p>
+            )}
+            <div className="flex flex-wrap gap-2 justify-center sm:justify-start">
+              {userData?.email && (
+                <span className="px-3 py-1.5 rounded-full bg-gray-100 dark:bg-white/8 border border-gray-200 dark:border-white/10 text-gray-600 dark:text-white/60 text-xs">
+                  ✉️ {userData.email}
+                </span>
+              )}
+              {userData?.phoneNumber && (
+                <span className="px-3 py-1.5 rounded-full bg-gray-100 dark:bg-white/8 border border-gray-200 dark:border-white/10 text-gray-600 dark:text-white/60 text-xs">
+                  📱 {userData.phoneNumber}
+                </span>
+              )}
             </div>
           </div>
 
-          <div className="w-full md:w-2/3 p-4">
-            <div className="flex items-center mb-4 gap-[19.2vw]">
-              <div>
-                <h3 className="text-xl font-semibold">Freelance Stats</h3>
-                <p className="text-sm text-gray-600">Overall</p>
-              </div>
-              <div>
-                <h3 className="text-xl font-semibold">Project History</h3>
-                <p className="text-sm text-gray-600">All Time</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 mb-4">
-              <div className="bg-gray-100 p-10 rounded-lg shadow flex flex-col items-center">
-                <div className="relative w-full h-[300px]">
-                  <Pie data={data} options={options} />
-                </div>
-                <p className="text-sm mt-4">Skills Distribution</p>
-              </div>
-              <div className="bg-gray-100 rounded-lg shadow">
-                <h4 className="text-lg">
-                  <h4 className="text-lg font-semibold mb-5 p-4 pb-2">
-                    Recent Projects
-                  </h4>
-                  <ul className="p-4 pb-2">
-                    <li className="mb-2 border-2 p-2 border-green-400">
-                      E-commerce Website - Completed
-                    </li>
-                    <li className="mb-2 border-2 p-2 border-green-400">
-                      Portfolio Website - In Progress
-                    </li>
-                    <li className="mb-2 border-2 p-2 border-green-400">
-                      Mobile App Design - Completed
-                    </li>
-                    <li className="mb-2 border-2 p-2 border-green-400">
-                      SEO Optimization - Completed
-                    </li>
-                    <li className="mb-2 border-2 p-2 border-green-400">
-                      WordPress Theme - In Progress
-                    </li>
-                  </ul>
-                  <a
-                    href=""
-                    className="text-sm pl-4  text-blue-600 hover:underline"
-                  >
-                    See more
-                  </a>
-                </h4>
-              </div>
-            </div>
-
-            <div className="bg-gray-100 p-4 rounded-lg shadow">
-              <h4 className="text-lg font-semibold">
-                {parseFloat(srtBalance) > 0
-                  ? `${parseFloat(srtBalance).toFixed(2)} SRT`
-                  : '0 SRT'}
-              </h4>
-              <p className="text-sm text-gray-500">Total Earnings</p>
-            </div>
+          <div className="flex gap-3">
+            <a href="/freelancer-jobs"
+              className="px-5 py-2.5 rounded-xl bg-black dark:bg-white text-white dark:text-black font-semibold text-sm hover:bg-gray-800 dark:hover:bg-gray-100 transition-all">
+              💼 My Gigs
+            </a>
           </div>
         </div>
+
+        {/* ── Stats grid ──────────────────────────────────────── */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          {[
+            { icon: "✅", label: "Gigs Done",    val: userData?.totalGigsCompleted || 0 },
+            { icon: "💰", label: "SRT Earned",   val: `${userData?.totalEarnedSRT || 0}` },
+            { icon: "⭐", label: "Avg Rating",   val: userData?.averageRating ? userData.averageRating.toFixed(1) : "—" },
+            { icon: "🕐", label: "Hourly Rate",  val: userData?.hourlyRate ? `${userData.hourlyRate} SRT` : "—" },
+          ].map(s => (
+            <div key={s.label}
+              className="bg-white dark:bg-white/5 border border-gray-100 dark:border-white/10 rounded-2xl p-5 text-center hover:shadow-md transition-shadow">
+              <div className="text-2xl mb-2">{s.icon}</div>
+              <div className="text-2xl font-black text-gray-900 dark:text-white">{s.val}</div>
+              <div className="text-gray-400 dark:text-white/30 text-xs mt-0.5">{s.label}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* ── Skills ──────────────────────────────────────────── */}
+        <div className="bg-white dark:bg-white/5 border border-gray-100 dark:border-white/10 rounded-3xl p-6 mb-6">
+          <h2 className="text-lg font-black text-gray-900 dark:text-white mb-4">Skills</h2>
+          <div className="flex flex-wrap gap-2">
+            {skills.map(skill => (
+              <span key={skill}
+                className="px-3 py-1.5 rounded-full border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-gray-700 dark:text-white/70 text-xs font-medium">
+                {skill}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        {/* ── Portfolio ────────────────────────────────────────── */}
+        {userData?.portfolio && (
+          <div className="bg-white dark:bg-white/5 border border-gray-100 dark:border-white/10 rounded-3xl p-6">
+            <h2 className="text-lg font-black text-gray-900 dark:text-white mb-3">Portfolio</h2>
+            <a href={userData.portfolio} target="_blank" rel="noopener noreferrer"
+              className="text-gray-600 dark:text-white/60 hover:text-black dark:hover:text-white text-sm underline transition-colors">
+              {userData.portfolio} ↗
+            </a>
+          </div>
+        )}
+
       </div>
     </div>
   );
-};
-
-export default Profile;
+}

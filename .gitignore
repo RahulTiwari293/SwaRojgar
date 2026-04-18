@@ -41,3 +41,8 @@ blockchain/artifacts/
 *.sln
 *.sw?
 
+.env
+backend/.env
+.env
+backend/.env
+CLAUDE.md

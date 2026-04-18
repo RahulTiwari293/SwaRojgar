@@ -188,7 +188,7 @@ function CreatePostModal({ isOpen, onClose }) {
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
                 <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto">
                     <div className="flex justify-between items-center mb-4">
-                        <h2 className="text-2xl font-bold text-purple-600">{modalTitle}</h2>
+                        <h2 className="text-2xl font-bold text-gray-900">{modalTitle}</h2>
                         <button
                             onClick={onClose}
                             className="text-gray-500 hover:text-gray-800 transition-all"
@@ -214,7 +214,7 @@ function CreatePostModal({ isOpen, onClose }) {
                                 value={formData.title}
                                 onChange={handleInputChange}
                                 required
-                                className="w-full p-3 border border-gray-300 rounded-lg focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:outline-none transition-all"
+                                className="w-full p-3 border border-gray-300 rounded-lg focus:border-gray-500 focus:ring-2 focus:ring-gray-200 focus:outline-none transition-all"
                                 placeholder={titlePlaceholder}
                             />
                         </div>
@@ -229,15 +229,15 @@ function CreatePostModal({ isOpen, onClose }) {
                                 onChange={handleInputChange}
                                 required
                                 rows="6"
-                                className="w-full p-3 border border-gray-300 rounded-lg focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:outline-none transition-all resize-none"
+                                className="w-full p-3 border border-gray-300 rounded-lg focus:border-gray-500 focus:ring-2 focus:ring-gray-200 focus:outline-none transition-all resize-none"
                                 placeholder={contentPlaceholder}
                             />
                         </div>
 
                         {/* SRT Payment Amount - Only for Clients */}
                         {isClient && (
-                            <div className="bg-gradient-to-r from-purple-50 to-blue-50 p-4 rounded-lg border-2 border-purple-200">
-                                <label className="block text-sm font-semibold mb-2 text-purple-700 flex items-center gap-2">
+                            <div className="bg-gray-50 p-4 rounded-lg border-2 border-gray-200">
+                                <label className="block text-sm font-semibold mb-2 text-gray-700 flex items-center gap-2">
                                     <span className="text-xl">💰</span>
                                     Payment Amount (SRT)
                                 </label>
@@ -249,7 +249,7 @@ function CreatePostModal({ isOpen, onClose }) {
                                     required
                                     min="1"
                                     step="0.01"
-                                    className="w-full p-3 border-2 border-purple-300 rounded-lg focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:outline-none transition-all font-semibold text-lg"
+                                    className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-gray-500 focus:ring-2 focus:ring-gray-200 focus:outline-none transition-all font-semibold text-lg"
                                     placeholder="e.g., 100"
                                 />
                                 <p className="text-xs text-gray-600 mt-2">
@@ -267,7 +267,7 @@ function CreatePostModal({ isOpen, onClose }) {
                                 name="image"
                                 onChange={handleInputChange}
                                 accept="image/*"
-                                className="w-full p-3 border border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100 transition-all"
+                                className="w-full p-3 border border-gray-300 rounded-lg focus:border-gray-500 focus:outline-none file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200 transition-all"
                             />
                             {formData.image && (
                                 <p className="text-sm text-green-600 mt-2 flex items-center">
@@ -287,7 +287,7 @@ function CreatePostModal({ isOpen, onClose }) {
                             <button
                                 type="submit"
                                 disabled={loading}
-                                className="w-full bg-gradient-to-r from-purple-600 to-purple-500 text-white font-semibold py-3 px-6 rounded-xl hover:from-purple-700 hover:to-purple-600 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed transform hover:-translate-y-0.5"
+                                className="w-full bg-black text-white font-semibold py-3 px-6 rounded-xl hover:bg-gray-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 {loading ? (
                                     <span className="flex items-center justify-center gap-2">

@@ -6,6 +6,14 @@
 
 /* Corrected the universal selector to not use quotes for the color */
 body {
-    background-color: #ebf8ff; /* No quotes around color */
-    font-family: 'Poppins', sans-serif; /* Applying the imported font globally */
+    background-color: #ffffff;
+    font-family: 'Poppins', sans-serif;
 }
+
+.dark body {
+    background-color: #030712;
+}
+
+/* Hide scrollbars while keeping scroll */
+.scrollbar-none::-webkit-scrollbar { display: none; }
+.scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }

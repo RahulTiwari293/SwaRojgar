@@ -9,13 +9,18 @@
  *   5. Calls setAIProposal() on the smart contract to record the verdict URI
  *
  * Required env vars:
- *   OPENAI_API_KEY        (or ANTHROPIC_API_KEY for Claude)
+ *   GROK_API_KEY          (xAI Grok — get from console.x.ai)
  *   BLOCKCHAIN_RPC_URL
  *   BLOCKCHAIN_PRIVATE_KEY
  *   ESCROW_CONTRACT_ADDRESS
  */
 
-const { ethers } = require("ethers");
+// Lazy-load ethers (large package — defers ~2min init cost to first use)
+let _ethers;
+function getEthers() {
+    if (!_ethers) _ethers = require('ethers').ethers;
+    return _ethers;
+}
 const axios = require("axios");
 const FormData = require("form-data");
 const mongoose = require("mongoose");
@@ -33,8 +38,8 @@ const CONFIG = {
     privateKey: process.env.BLOCKCHAIN_PRIVATE_KEY,
     escrowAddress: process.env.ESCROW_CONTRACT_ADDRESS,
     pinataJwt: process.env.PINATA_JWT,
-    openaiKey: process.env.OPENAI_API_KEY,
-    openaiModel: "gpt-4-turbo-preview"
+    grokKey: process.env.GROK_API_KEY,
+    grokModel: "grok-3"
 };
 
 // ─── Pinata IPFS Upload ───────────────────────────────────────────────────────
@@ -117,9 +122,9 @@ Respond with ONLY a valid JSON object in this exact format:
 Ruling options: 1 = Pay Freelancer (work accepted), 2 = Refund Client (work rejected)`;
 
     const response = await axios.post(
-        "https://api.openai.com/v1/chat/completions",
+        "https://api.x.ai/v1/chat/completions",
         {
-            model: CONFIG.openaiModel,
+            model: CONFIG.grokModel,
             messages: [
                 { role: "system", content: systemPrompt },
                 { role: "user", content: userPrompt }
@@ -130,7 +135,7 @@ Ruling options: 1 = Pay Freelancer (work accepted), 2 = Refund Client (work reje
         },
         {
             headers: {
-                Authorization: `Bearer ${CONFIG.openaiKey}`,
+                Authorization: `Bearer ${CONFIG.grokKey}`,
                 "Content-Type": "application/json"
             }
         }
@@ -152,6 +157,7 @@ async function processAIDispute(gigId) {
     console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
     // 1. Connect to blockchain
+    const ethers = getEthers();
     const provider = new ethers.JsonRpcProvider(CONFIG.rpcUrl);
     const signer = new ethers.Wallet(CONFIG.privateKey, provider);
     const escrow = new ethers.Contract(CONFIG.escrowAddress, ESCROW_ABI, signer);
@@ -195,7 +201,7 @@ async function processAIDispute(gigId) {
         version: "1.0",
         gigId,
         generatedAt: new Date().toISOString(),
-        resolvedBy: "SwaRojgar AI Arbitrator (GPT-4)",
+        resolvedBy: "SwaRojgar AI Arbitrator (Grok-3)",
         ...aiVerdict,
         // ERC-1497 compatible fields
         title: "AI Proposed Resolution",
@@ -234,6 +240,7 @@ async function processAIDispute(gigId) {
  * Run this as a long-lived process alongside the main backend server.
  */
 async function startEventListener() {
+    const ethers = getEthers();
     const provider = new ethers.JsonRpcProvider(CONFIG.rpcUrl);
     const escrow = new ethers.Contract(CONFIG.escrowAddress, [
         ...ESCROW_ABI,
