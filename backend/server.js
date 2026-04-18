@@ -45,7 +45,7 @@ let mongoConnected = false;
 async function connectMongo() {
     if (mongoConnected || mongoose.connection.readyState === 1) return;
     try {
-        await mongoose.connect(MONGODB_URI, { bufferCommands: false });
+        await mongoose.connect(MONGODB_URI);
         mongoConnected = true;
         console.log("✅ MongoDB connected:", mongoose.connection.name);
     } catch (err) {
@@ -54,8 +54,15 @@ async function connectMongo() {
     }
 }
 
-// Connect immediately for local dev; on Vercel this runs per cold start
-connectMongo().catch(console.error);
+// Middleware to ensure DB is connected before every request (required for Vercel serverless)
+app.use(async (req, res, next) => {
+    try {
+        await connectMongo();
+        next();
+    } catch (err) {
+        res.status(503).json({ message: 'Database unavailable', error: err.message });
+    }
+});
 
 // Multer: memory storage for Vercel compatibility (no persistent filesystem)
 const User = require('./models/User');
