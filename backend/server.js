@@ -22,7 +22,7 @@ const allowedOrigins = [
     'http://localhost:5173',  // Vite dev server
     'http://localhost:5174',  // Vite dev server (fallback port)
     'http://localhost:4173',  // Vite preview
-    process.env.FRONTEND_URL, // production URL (set in .env)
+    process.env.FRONTEND_URL, // production URL (set in .env / Fly secrets)
 ].filter(Boolean);
 
 app.use(cors({
