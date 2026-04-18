@@ -8,9 +8,9 @@ function getEthers() {
     return _ethers;
 }
 
-// Load contract ABIs
-const tokenABI = require('../../blockchain/artifacts/contracts/SwaRojgarToken.sol/SwaRojgarToken.json').abi;
-const escrowABI = require('../../blockchain/artifacts/contracts/GigEscrow.sol/GigEscrow.json').abi;
+// Load contract ABIs (copied into backend/abis/ for Vercel deployment)
+const tokenABI = require('../abis/SwaRojgarToken.json').abi;
+const escrowABI = require('../abis/GigEscrow.json').abi;
 
 class BlockchainService {
     constructor() {
