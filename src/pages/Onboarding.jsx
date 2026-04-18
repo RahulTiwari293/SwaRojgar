@@ -28,6 +28,8 @@ export default function Onboarding() {
     setLoading(true);
     try {
       const clerkToken = await getToken();
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000); // 15s timeout
       const res = await fetch(`${BACKEND}/api/users/clerk-sync`, {
         method: "POST",
         headers: {
@@ -35,7 +37,9 @@ export default function Onboarding() {
           Authorization: `Bearer ${clerkToken}`,
         },
         body: JSON.stringify({ userType }),
+        signal: controller.signal,
       });
+      clearTimeout(timeout);
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Setup failed");
@@ -49,7 +53,11 @@ export default function Onboarding() {
       else navigate("/freelancer-dashboard");
 
     } catch (e) {
-      setError(e.message);
+      if (e.name === 'AbortError') {
+        setError('Request timed out — backend is slow or unreachable. Check VITE_BACKEND_URL.');
+      } else {
+        setError(e.message || 'Network error — check backend URL and CORS settings.');
+      }
     } finally {
       setLoading(false);
     }
