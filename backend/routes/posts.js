@@ -17,13 +17,9 @@ const { authMiddleware } = require('../middleware/auth');
 
 const router = express.Router();
 
-// ─── Multer: disk storage for post images ─────────────────────────────────────
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => cb(null, 'uploads/posts/'),
-    filename:    (req, file, cb) => cb(null, Date.now() + '-' + file.originalname)
-});
+// ─── Multer: memory storage (works on Vercel — no persistent filesystem) ──────
 const upload = multer({
-    storage,
+    storage: multer.memoryStorage(),
     limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
     fileFilter: (req, file, cb) => {
         const allowed = /jpeg|jpg|png|gif|webp|pdf/;

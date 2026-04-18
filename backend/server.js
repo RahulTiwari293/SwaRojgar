@@ -38,47 +38,34 @@ app.use(cors({
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-// MongoDB connection
+// MongoDB connection — cached for serverless (Vercel reuses connections across requests)
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/swarojgar';
-console.log('Attempting to connect to MongoDB at:', MONGODB_URI);
 
-mongoose.connect(MONGODB_URI)
-    .then(() => {
-        console.log("✅ Successfully connected to MongoDB");
-        console.log("📊 Database:", mongoose.connection.name);
-    })
-    .catch(err => {
+let mongoConnected = false;
+async function connectMongo() {
+    if (mongoConnected || mongoose.connection.readyState === 1) return;
+    try {
+        await mongoose.connect(MONGODB_URI, { bufferCommands: false });
+        mongoConnected = true;
+        console.log("✅ MongoDB connected:", mongoose.connection.name);
+    } catch (err) {
         console.error("❌ MongoDB connection error:", err.message);
-        console.error("Make sure MongoDB is running locally!");
-    });
-
-// Set up storage for post images
-const postStorage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, 'uploads/posts/'); // Save post images in the 'uploads/posts' directory
-    },
-    filename: (req, file, cb) => {
-        cb(null, Date.now() + path.extname(file.originalname)); // Save images with a timestamp to avoid overwriting
+        throw err;
     }
-});
+}
 
-// Set up storage for profile photos
-const profileStorage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, 'uploads/profiles/'); // Save profile photos in the 'uploads/profiles' directory
-    },
-    filename: (req, file, cb) => {
-        cb(null, 'profile-' + Date.now() + path.extname(file.originalname));
-    }
-});
+// Connect immediately for local dev; on Vercel this runs per cold start
+connectMongo().catch(console.error);
 
+// Multer: memory storage for Vercel compatibility (no persistent filesystem)
 const User = require('./models/User');
+const uploadPost    = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+const uploadProfile = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5  * 1024 * 1024 } });
 
-const uploadPost = multer({ storage: postStorage });
-const uploadProfile = multer({ storage: profileStorage });
-
-// Serve static files from the 'uploads' directory
-app.use('/uploads', express.static('uploads'));
+// Static file serving — only in local dev (Vercel has no filesystem)
+if (process.env.NODE_ENV !== 'production') {
+    app.use('/uploads', express.static('uploads'));
+}
 
 // Use the post routes
 app.use('/api/posts', postRoutes);
@@ -499,20 +486,23 @@ app.get('/api/jobs/:jobId/details', authMiddleware, async (req, res) => {
 
 // ===== SERVER START =====
 
-// Initialize blockchain service + start AI dispute event listener
+// Initialize blockchain service
+// AI event listener is disabled on Vercel (serverless) — use manual trigger endpoint instead:
+// POST /api/dispute/:gigId/ai-trigger
 blockchainService.initialize()
     .then(() => {
         console.log('✅ Blockchain connected on Sepolia');
         console.log('📝 Token Contract:', process.env.TOKEN_CONTRACT_ADDRESS);
         console.log('📝 Escrow Contract:', process.env.ESCROW_CONTRACT_ADDRESS);
 
-        // Start AI resolution event listener (watches for DisputeRaisedAI events)
-        if (process.env.GROK_API_KEY && process.env.BLOCKCHAIN_PRIVATE_KEY) {
+        // Only start event listener in non-serverless environments
+        if (process.env.ENABLE_EVENT_LISTENER === 'true' &&
+            process.env.GROK_API_KEY && process.env.BLOCKCHAIN_PRIVATE_KEY) {
             startEventListener()
                 .then(() => console.log('🤖 AI Dispute Resolver: listening for events'))
                 .catch(err => console.error('⚠️  AI event listener failed to start:', err.message));
         } else {
-            console.warn('⚠️  AI event listener disabled — set GROK_API_KEY and BLOCKCHAIN_PRIVATE_KEY in .env');
+            console.log('ℹ️  AI event listener disabled — use POST /api/dispute/:gigId/ai-trigger to resolve disputes manually');
         }
     })
     .catch(err => {
@@ -520,35 +510,12 @@ blockchainService.initialize()
         console.log('Server will continue without blockchain features');
     });
 
-// Start the server
-app.listen(PORT, () => {
-    console.log(`\n🚀 Server is running on port ${PORT}`);
-    console.log(`📡 API available at: http://localhost:${PORT}`);
+// Local dev: start server normally
+// Vercel: exports app as a serverless function handler
+if (process.env.NODE_ENV !== 'production') {
+    app.listen(PORT, () => {
+        console.log(`\n🚀 Server running on http://localhost:${PORT}\n`);
+    });
+}
 
-    console.log(`\n Available endpoints:`);
-    console.log(`   POST http://localhost:${PORT}/signup`);
-    console.log(`   POST http://localhost:${PORT}/login`);
-    console.log(`   POST http://localhost:${PORT}/api/posts`);
-    console.log(`   GET  http://localhost:${PORT}/api/posts`);
-    console.log(`   POST http://localhost:${PORT}/api/users/:userId/profile-photo`);
-    console.log(`   GET  http://localhost:${PORT}/api/users/:userId`);
-
-    console.log(`\n Blockchain endpoints:`);
-    console.log(`   GET  http://localhost:${PORT}/api/blockchain/balance/:address`);
-    console.log(`   POST http://localhost:${PORT}/api/blockchain/gig/create`);
-    console.log(`   POST http://localhost:${PORT}/api/blockchain/gig/:gigId/accept`);
-    console.log(`   POST http://localhost:${PORT}/api/blockchain/gig/:gigId/submit-proof`);
-    console.log(`   GET  http://localhost:${PORT}/api/blockchain/gig/:gigId/proof`);
-    console.log(`   POST http://localhost:${PORT}/api/blockchain/gig/:gigId/approve`);
-    console.log(`   GET  http://localhost:${PORT}/api/blockchain/gig/:gigId/status`);
-
-    console.log(`\n Job Management endpoints:`);
-    console.log(`   PATCH http://localhost:${PORT}/api/jobs/:jobId/accept`);
-    console.log(`   GET   http://localhost:${PORT}/api/jobs/available`);
-    console.log(`   GET   http://localhost:${PORT}/api/jobs/freelancer/:userId`);
-    console.log(`   GET   http://localhost:${PORT}/api/jobs/customer/:userId`);
-    console.log(`   PATCH http://localhost:${PORT}/api/jobs/:jobId/status`);
-    console.log(`   GET   http://localhost:${PORT}/api/jobs/:jobId/details`);
-
-    console.log(`\n Press Ctrl+C to stop the server\n`);
-});
+module.exports = app;
