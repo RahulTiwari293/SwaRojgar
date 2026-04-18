@@ -25,18 +25,19 @@ const allowedOrigins = [
     process.env.FRONTEND_URL, // production URL (set in .env / Fly secrets)
 ].filter(Boolean);
 
-app.use(cors({
+const corsOptions = {
     origin: (origin, callback) => {
-        // Allow requests with no origin (Postman, server-to-server)
         if (!origin) return callback(null, true);
-        // Allow exact matches
         if (allowedOrigins.includes(origin)) return callback(null, true);
-        // Allow any Vercel deployment (preview or production)
         if (/^https:\/\/[a-z0-9-]+\.vercel\.app$/.test(origin)) return callback(null, true);
         callback(new Error(`CORS: origin ${origin} not allowed`));
     },
     credentials: true,
-}));
+};
+
+// Handle preflight for all routes first — must be before any other middleware
+app.options('*', cors(corsOptions));
+app.use(cors(corsOptions));
 
 // Middleware
 app.use(bodyParser.json());
