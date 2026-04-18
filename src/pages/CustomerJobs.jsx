@@ -204,7 +204,7 @@ function CreateGigModal({ onClose, onCreated, srtBalance, user }) {
       const res  = await fetch(`${BACKEND}/api/posts`, {
         method:"POST", headers:{"Content-Type":"application/json", Authorization:`Bearer ${token}`},
         body: JSON.stringify({ userId, title:form.title, content:form.content, userType:"client", postType:"job",
-          srtAmount: parseFloat(form.srtAmount), deadline: form.deadline ? Math.floor(new Date(form.deadline)/1000) : 0,
+          srtAmount: parseFloat(form.srtAmount), deadline: form.deadline ? Math.floor(new Date(form.deadline)/1000) : Math.floor(Date.now()/1000) + 30*24*60*60,
           walletAddress: wallet.address })
       });
       const data = await res.json();
@@ -244,7 +244,8 @@ function CreateGigModal({ onClose, onCreated, srtBalance, user }) {
       // 4. Lock in escrow
       const receipt = await runTx(() => {
         const esc = new ethers.Contract(ESCROW_ADDR, ESCROW_ABI, wallet.signer);
-        const dl  = form.deadline ? Math.floor(new Date(form.deadline)/1000) : 0;
+        // Default to 30 days from now if no deadline set (contract requires deadline > block.timestamp)
+        const dl  = form.deadline ? Math.floor(new Date(form.deadline)/1000) : Math.floor(Date.now()/1000) + 30*24*60*60;
         return esc.createGig(gigId, rawAmt, dl, metaEvidenceUri);
       }, "Locking SRT in escrow...");
 
