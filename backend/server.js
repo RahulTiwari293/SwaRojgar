@@ -55,7 +55,9 @@ async function connectMongo() {
 }
 
 // Middleware to ensure DB is connected before every request (required for Vercel serverless)
+// Skip for OPTIONS (CORS preflight) — CORS headers must be sent before DB connects
 app.use(async (req, res, next) => {
+    if (req.method === 'OPTIONS') return next();
     try {
         await connectMongo();
         next();
