@@ -28,7 +28,11 @@ const allowedOrigins = [
 app.use(cors({
     origin: (origin, callback) => {
         // Allow requests with no origin (Postman, server-to-server)
-        if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+        if (!origin) return callback(null, true);
+        // Allow exact matches
+        if (allowedOrigins.includes(origin)) return callback(null, true);
+        // Allow any Vercel preview deployment for this project
+        if (/^https:\/\/swa-rojgar[a-z0-9-]*\.vercel\.app$/.test(origin)) return callback(null, true);
         callback(new Error(`CORS: origin ${origin} not allowed`));
     },
     credentials: true,
