@@ -61,7 +61,7 @@ function WalletButton() {
             const signer = await provider.getSigner();
 
             // Get SRT token contract address from environment
-            const tokenAddress = import.meta.env.VITE_TOKEN_CONTRACT_ADDRESS;
+            const tokenAddress = (import.meta.env.VITE_TOKEN_CONTRACT_ADDRESS || "0x5D3976fc3F92174da8F851a12a5b0056CC6783A0").trim();
             const tokenABI = ['function balanceOf(address) view returns (uint256)'];
             const tokenContract = new ethers.Contract(
                 tokenAddress,
