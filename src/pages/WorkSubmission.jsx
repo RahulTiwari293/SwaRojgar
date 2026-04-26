@@ -16,7 +16,7 @@ import { useGig, pushToast } from "../context/GigContext";
 import Navbar from "../navbar";
 
 const BACKEND     = import.meta.env.VITE_BACKEND_URL || "http://localhost:5010";
-const ESCROW_ADDR = (import.meta.env.VITE_ESCROW_CONTRACT_ADDRESS || "0x5996AD515E407F1569278a1642cE9f259c1010eA").trim();
+const ESCROW_ADDR = (import.meta.env.VITE_ESCROW_CONTRACT_ADDRESS || "0x8eFa974E68A449B25Db77B73841dc14921A98Ba5").trim();
 const ESCROW_ABI  = [
   "function submitProof(string gigId, string ipfsHash) external",
 ];

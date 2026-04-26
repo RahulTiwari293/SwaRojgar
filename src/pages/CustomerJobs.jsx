@@ -19,8 +19,8 @@ import Navbar from "../navbar";
 import clientImg from "../assets/client_dashboard_hero.png";
 
 const BACKEND     = import.meta.env.VITE_BACKEND_URL || "http://localhost:5010";
-const ESCROW_ADDR = (import.meta.env.VITE_ESCROW_CONTRACT_ADDRESS || "0x5996AD515E407F1569278a1642cE9f259c1010eA").trim();
-const TOKEN_ADDR  = (import.meta.env.VITE_TOKEN_CONTRACT_ADDRESS  || "0xfdA41C31D6630980352F590c753E9Ee5E2964906").trim();
+const ESCROW_ADDR = (import.meta.env.VITE_ESCROW_CONTRACT_ADDRESS || "0x8eFa974E68A449B25Db77B73841dc14921A98Ba5").trim();
+const TOKEN_ADDR  = (import.meta.env.VITE_TOKEN_CONTRACT_ADDRESS  || "0x5D3976fc3F92174da8F851a12a5b0056CC6783A0").trim();
 const RPC_URL     = import.meta.env.VITE_RPC_URL || "https://rpc.sepolia.org";
 // Read-only provider — avoids MetaMask popup for failed view calls
 const readProvider = new ethers.JsonRpcProvider(RPC_URL);
@@ -250,9 +250,19 @@ function CreateGigModal({ onClose, onCreated, srtBalance, user }) {
       }, "Locking SRT in escrow...");
 
       if (receipt) {
+        // Sync blockchain tx hash back to MongoDB post
+        await fetch(`${BACKEND}/api/jobs/${gigId}/status`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ status: "OPEN", txHash: receipt.hash }),
+        }).catch(() => {}); // non-fatal
+
         pushToast(`🔒 ${form.srtAmount} SRT locked! Gig #${data.post.gigNumber || "—"} is live.`,"success",6000);
         onCreated();
         onClose();
+      } else {
+        // runTx returned null — tx failed or was rejected
+        setStep(1);
       }
     } catch(e) { pushToast(e.reason||e.message,"error"); setStep(1); }
     finally { setSaving(false); }
