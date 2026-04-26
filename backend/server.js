@@ -19,17 +19,21 @@ const PORT = process.env.PORT || 5010;
 
 // CORS — whitelist frontend origins
 const allowedOrigins = [
-    'http://localhost:5173',  // Vite dev server
-    'http://localhost:5174',  // Vite dev server (fallback port)
-    'http://localhost:4173',  // Vite preview
-    process.env.FRONTEND_URL, // production URL (set in .env / Fly secrets)
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'http://localhost:4173',
+    'https://swa-rojgar.vercel.app',          // production frontend (hardcoded)
+    process.env.FRONTEND_URL,                  // override via env var
 ].filter(Boolean);
 
 const corsOptions = {
     origin: (origin, callback) => {
+        // Allow server-to-server requests (no Origin header)
         if (!origin) return callback(null, true);
+        // Exact match
         if (allowedOrigins.includes(origin)) return callback(null, true);
-        if (/^https:\/\/[a-z0-9-]+\.vercel\.app$/.test(origin)) return callback(null, true);
+        // Any *.vercel.app preview URL (handles deploy previews with any subdomain pattern)
+        if (/^https:\/\/[\w-]+\.vercel\.app$/.test(origin)) return callback(null, true);
         callback(new Error(`CORS: origin ${origin} not allowed`));
     },
     credentials: true,
