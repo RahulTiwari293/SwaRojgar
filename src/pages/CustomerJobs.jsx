@@ -144,7 +144,7 @@ function GigCard({ gig, onApprove, onDispute, onView, idx }) {
           {showProof && (
             <div className="mt-2 p-3 rounded-xl bg-white/6 border border-white/15">
               <p className="text-white/50 text-xs mb-2">IPFS proof hash:</p>
-              <a href={`https://gateway.pinata.cloud/ipfs/${gig.proofIpfsHash}`} target="_blank" rel="noopener noreferrer"
+              <a href={`https://gateway.pinata.cloud/${gig.proofIpfsHash}`} target="_blank" rel="noopener noreferrer"
                 className="text-white/60 text-xs font-mono break-all hover:underline">
                 {gig.proofIpfsHash}
               </a>
@@ -432,7 +432,15 @@ export default function CustomerJobs() {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ status: "DISPUTED_AI", txHash: r.hash }),
-      }).catch(() => {}); // non-fatal
+      }).catch(() => {});
+      // Trigger AI resolution pipeline and notify when done
+      fetch(`${BACKEND}/api/dispute/${gigId}/ai-trigger`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      }).then(r => r.json()).then(d => {
+        if (d.ruling) pushToast(`🤖 AI Verdict: ${d.ruling} (${Math.round((d.confidence||0)*100)}% confidence)`, "success", 10000);
+        else if (d.error) pushToast(`❌ AI failed: ${d.error}`, "error", 10000);
+      }).catch(e => pushToast(`❌ AI trigger failed: ${e.message}`, "error", 8000));
       pushToast("🤖 AI is reviewing your dispute", "info", 6000);
       fetchData();
     }
