@@ -85,7 +85,14 @@ function NetworkBanner() {
   );
 }
 
+const BACKEND = import.meta.env.VITE_BACKEND_URL || "http://localhost:5010";
+
 function App() {
+  // Ping backend on app load so it warms up before any user action
+  useEffect(() => {
+    fetch(`${BACKEND}/api/jobs/available`, { method: "GET" }).catch(() => {});
+  }, []);
+
   return (
     <Router>
       <NetworkBanner />

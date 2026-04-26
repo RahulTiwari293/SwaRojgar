@@ -421,8 +421,23 @@ export default function ResolutionCenter() {
             const escrow = new ethers.Contract(ESCROW_ADDRESS, ESCROW_ABI, signer);
             const tx = await escrow.raiseDisputeAI(gigId);
             setTxStatus("⏳ Waiting for confirmation...");
-            await tx.wait();
-            setTxStatus("✅ Dispute raised! AI analysis will begin shortly.");
+            const receipt = await tx.wait();
+            // Sync MongoDB status
+            const token = localStorage.getItem("token");
+            await fetch(`${BACKEND_URL}/api/jobs/${gigId}/status`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ status: "DISPUTED_AI", txHash: receipt.hash }),
+            }).catch(() => {});
+            // Trigger AI resolution pipeline and notify when done
+            fetch(`${BACKEND_URL}/api/dispute/${gigId}/ai-trigger`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            }).then(r => r.json()).then(d => {
+                if (d.ruling) setTxStatus(`🤖 AI Verdict: ${d.ruling} (${Math.round((d.confidence||0)*100)}% confidence) — check dispute panel.`);
+                loadGig();
+            }).catch(() => {});
+            setTxStatus("✅ Dispute raised! AI analysis has started.");
             await loadGig();
         } catch (e) { setTxStatus(`❌ ${e.message}`); }
     };

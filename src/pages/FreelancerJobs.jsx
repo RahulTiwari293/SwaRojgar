@@ -278,7 +278,15 @@ export default function FreelancerDashboard() {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ status: "DISPUTED_AI", txHash: r.hash }),
-      }).catch(() => {}); // non-fatal
+      }).catch(() => {});
+      // Trigger AI resolution pipeline and notify when done
+      fetch(`${BACKEND}/api/dispute/${gigId}/ai-trigger`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      }).then(r => r.json()).then(d => {
+        if (d.ruling) pushToast(`🤖 AI Verdict: ${d.ruling} (${Math.round((d.confidence||0)*100)}% confidence)`, "success", 10000);
+        else if (d.error) pushToast(`❌ AI failed: ${d.error}`, "error", 10000);
+      }).catch(e => pushToast(`❌ AI trigger failed: ${e.message}`, "error", 8000));
       pushToast("🤖 AI is now reviewing your dispute", "info", 6000);
       fetchData();
     }

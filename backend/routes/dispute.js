@@ -17,6 +17,7 @@ const path = require("path");
 const { uploadMetaEvidence, uploadEvidence } = require("../utils/uploadMetaEvidence");
 const { processAIDispute } = require("../services/aiResolutionService");
 
+const { authMiddleware } = require("../middleware/auth");
 const router = express.Router();
 
 // ─── Multer: store files in memory for Pinata upload ─────────────────────────
@@ -172,24 +173,23 @@ router.get("/:gigId", async (req, res) => {
 });
 
 // ─── POST /api/dispute/:gigId/ai-trigger ─────────────────────────────────────
-// Admin endpoint: manually trigger AI analysis for a disputed gig.
-router.post("/:gigId/ai-trigger", async (req, res) => {
+// Trigger AI analysis for a disputed gig. Requires valid JWT (any logged-in user).
+router.post("/:gigId/ai-trigger", authMiddleware, async (req, res) => {
     try {
         const { gigId } = req.params;
-        const { adminKey } = req.body;
+        console.log(`🤖 AI resolution triggered for gig: ${gigId} by user: ${req.user.userId}`);
 
-        // Simple admin key check — replace with proper JWT auth middleware in prod
-        if (adminKey !== process.env.ADMIN_SECRET) {
-            return res.status(403).json({ error: "Forbidden" });
-        }
+        // Await full result so Vercel doesn't kill the function early
+        const result = await processAIDispute(gigId);
 
-        // Run AI analysis asynchronously
-        console.log(`🤖 Manually triggering AI resolution for gig: ${gigId}`);
-        processAIDispute(gigId)
-            .then(result => console.log(`✅ AI resolved gig ${gigId}:`, result.verdict.rulingLabel))
-            .catch(err => console.error(`❌ AI resolution failed:`, err.message));
-
-        res.json({ success: true, message: "AI resolution triggered. Check contract events for the result." });
+        console.log(`✅ AI resolved gig ${gigId}:`, result.verdict.rulingLabel);
+        res.json({
+            success: true,
+            ruling: result.verdict.rulingLabel,
+            confidence: result.verdict.confidence,
+            proposalUri: result.proposalUri,
+            txHash: result.txHash,
+        });
 
     } catch (error) {
         console.error("AI trigger error:", error);

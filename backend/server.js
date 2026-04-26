@@ -388,6 +388,9 @@ app.patch('/api/jobs/:jobId/accept', authMiddleware, async (req, res) => {
     }
 });
 
+// Keep-alive ping — hit by Vercel cron every 5 minutes
+app.get('/api/ping', (req, res) => res.json({ status: 'ok', t: Date.now() }));
+
 // Get available jobs for freelancers (public — no auth required for browsing)
 app.get('/api/jobs/available', async (req, res) => {
     try {

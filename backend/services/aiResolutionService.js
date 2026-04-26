@@ -26,9 +26,9 @@ const FormData = require("form-data");
 const mongoose = require("mongoose");
 const Post = require("../models/Post");
 
-// ─── Contract ABI (only the functions we need) ────────────────────────────────
+// ─── Contract ABI (must match deployed contract exactly) ─────────────────────
 const ESCROW_ABI = [
-    "function getGig(string gigId) view returns (tuple(string gigId, address client, address freelancer, uint256 amount, uint8 status, uint256 createdAt, uint256 deadline, string proofIpfsHash, string metaEvidenceUri, string aiProposalUri, bool clientAcceptsAI, bool freelancerAcceptsAI, uint256 metaEvidenceID, uint256 klerosDisputeId, bool hasKlerosDispute, uint256 klerosRuling))",
+    "function getGig(string gigId) view returns (tuple(string gigId, uint256 gigNumber, address client, address freelancer, uint256 amount, uint8 status, uint256 createdAt, uint256 deadline, string proofIpfsHash, string metaEvidenceUri, string aiProposalUri, bool clientAcceptsAI, bool freelancerAcceptsAI, uint256 metaEvidenceID, uint256 klerosDisputeId, bool hasKlerosDispute, uint256 klerosRuling))",
     "function setAIProposal(string gigId, string proposalUri) external"
 ];
 
@@ -38,8 +38,8 @@ const CONFIG = {
     privateKey: process.env.BLOCKCHAIN_PRIVATE_KEY,
     escrowAddress: process.env.ESCROW_CONTRACT_ADDRESS,
     pinataJwt: process.env.PINATA_JWT,
-    grokKey: process.env.GROK_API_KEY,
-    grokModel: "grok-3"
+    mistralKey: process.env.MISTRAL_API_KEY,
+    mistralModel: "mistral-small-latest"
 };
 
 // ─── Pinata IPFS Upload ───────────────────────────────────────────────────────
@@ -78,7 +78,7 @@ async function fetchFromIPFS(ipfsUri) {
     }
 }
 
-// ─── LLM Analysis ─────────────────────────────────────────────────────────────
+// ─── LLM Analysis (Mistral) ───────────────────────────────────────────────────
 async function analyzeWithLLM(gigContext) {
     const systemPrompt = `You are an impartial AI arbitrator for a decentralized freelance marketplace called SwaRojgar.
 Your job is to fairly analyze disputes between clients and freelancers based strictly on the evidence provided.
@@ -105,7 +105,7 @@ Determine who should receive the escrowed funds based on:
 2. Quality and completeness of the proof submitted
 3. Any breach of the agreed terms
 
-Respond with ONLY a valid JSON object in this exact format:
+Respond with ONLY a valid JSON object (no markdown, no code blocks):
 {
   "ruling": 1,
   "rulingLabel": "Pay Freelancer",
@@ -122,20 +122,20 @@ Respond with ONLY a valid JSON object in this exact format:
 Ruling options: 1 = Pay Freelancer (work accepted), 2 = Refund Client (work rejected)`;
 
     const response = await axios.post(
-        "https://api.x.ai/v1/chat/completions",
+        "https://api.mistral.ai/v1/chat/completions",
         {
-            model: CONFIG.grokModel,
+            model: CONFIG.mistralModel,
             messages: [
                 { role: "system", content: systemPrompt },
                 { role: "user", content: userPrompt }
             ],
             response_format: { type: "json_object" },
-            temperature: 0.2, // Low temp for consistent, deterministic rulings
+            temperature: 0.2,
             max_tokens: 1500
         },
         {
             headers: {
-                Authorization: `Bearer ${CONFIG.grokKey}`,
+                Authorization: `Bearer ${CONFIG.mistralKey}`,
                 "Content-Type": "application/json"
             }
         }
@@ -158,13 +158,27 @@ async function processAIDispute(gigId) {
 
     // 1. Connect to blockchain
     const ethers = getEthers();
+    if (!CONFIG.rpcUrl) throw new Error("BLOCKCHAIN_RPC_URL not set");
+    if (!CONFIG.privateKey) throw new Error("BLOCKCHAIN_PRIVATE_KEY not set");
+    if (!CONFIG.escrowAddress) throw new Error("ESCROW_CONTRACT_ADDRESS not set");
+    if (!CONFIG.mistralKey) throw new Error("MISTRAL_API_KEY not set");
+
     const provider = new ethers.JsonRpcProvider(CONFIG.rpcUrl);
     const signer = new ethers.Wallet(CONFIG.privateKey, provider);
     const escrow = new ethers.Contract(CONFIG.escrowAddress, ESCROW_ABI, signer);
 
     // 2. Fetch on-chain gig data
     console.log("🔗 Fetching on-chain gig data...");
-    const gigData = await escrow.getGig(gigId);
+    let gigData;
+    try {
+        gigData = await Promise.race([
+            escrow.getGig(gigId),
+            new Promise((_, reject) => setTimeout(() => reject(new Error("getGig timed out after 15s")), 15000))
+        ]);
+    } catch (e) {
+        throw new Error(`Failed to fetch gig from chain: ${e.message}`);
+    }
+    console.log(`   Status: ${gigData.status}, Amount: ${gigData.amount}`);
 
     // 3. Fetch MetaEvidence from IPFS
     console.log("📦 Fetching MetaEvidence from IPFS...");
@@ -192,8 +206,16 @@ async function processAIDispute(gigId) {
     };
 
     // 6. Get AI ruling
-    console.log("🧠 Sending to LLM for analysis...");
-    const aiVerdict = await analyzeWithLLM(gigContext);
+    console.log("🧠 Sending to Grok-3 for analysis...");
+    let aiVerdict;
+    try {
+        aiVerdict = await Promise.race([
+            analyzeWithLLM(gigContext),
+            new Promise((_, reject) => setTimeout(() => reject(new Error("Grok API timed out after 30s")), 30000))
+        ]);
+    } catch (e) {
+        throw new Error(`LLM analysis failed: ${e.message}`);
+    }
     console.log(`   Ruling: ${aiVerdict.rulingLabel} (confidence: ${(aiVerdict.confidence * 100).toFixed(0)}%)`);
 
     // 7. Build the full proposal document
@@ -201,7 +223,7 @@ async function processAIDispute(gigId) {
         version: "1.0",
         gigId,
         generatedAt: new Date().toISOString(),
-        resolvedBy: "SwaRojgar AI Arbitrator (Grok-3)",
+        resolvedBy: "SwaRojgar AI Arbitrator (Mistral Small)",
         ...aiVerdict,
         // ERC-1497 compatible fields
         title: "AI Proposed Resolution",

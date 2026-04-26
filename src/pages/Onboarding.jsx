@@ -29,7 +29,7 @@ export default function Onboarding() {
     try {
       const clerkToken = await getToken();
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 15000); // 15s timeout
+      const timeout = setTimeout(() => controller.abort(), 30000); // 30s timeout (allow for cold start)
       const res = await fetch(`${BACKEND}/api/users/clerk-sync`, {
         method: "POST",
         headers: {
@@ -54,7 +54,7 @@ export default function Onboarding() {
 
     } catch (e) {
       if (e.name === 'AbortError') {
-        setError('Request timed out — backend is slow or unreachable. Check VITE_BACKEND_URL.');
+        setError('Server is starting up, please try again in a few seconds.');
       } else {
         setError(e.message || 'Network error — check backend URL and CORS settings.');
       }
