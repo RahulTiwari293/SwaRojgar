@@ -4,6 +4,7 @@ import { IoSearch } from 'react-icons/io5';
 import logo from './assets/logo.png';
 import { useGig } from './context/GigContext';
 import { useTheme } from './context/ThemeContext';
+import { useClerk } from '@clerk/clerk-react';
 import axios from 'axios';
 
 const API = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5010';
@@ -13,6 +14,7 @@ function Navbar() {
   const location  = useLocation();
   const { wallet, connectWallet, logout, workspace, switchWorkspace, userRole } = useGig();
   const { dark, toggle } = useTheme();
+  const { signOut } = useClerk();
 
   const [profileOpen,  setProfileOpen]  = useState(false);
   const [exploreOpen,  setExploreOpen]  = useState(false);
@@ -21,6 +23,13 @@ function Navbar() {
 
   const profileRef = useRef(null);
   const exploreRef = useRef(null);
+
+  const handleLogout = async () => {
+    logout();
+    await signOut();
+    navigate('/login');
+    setProfileOpen(false);
+  };
 
   const isActive  = (p) => location.pathname === p;
   const shortAddr = wallet.address
@@ -307,7 +316,7 @@ function Navbar() {
                   )}
                   <DropItem onClick={() => { navigate('/ResolutionCenter'); setProfileOpen(false); }}>⚖️ Disputes</DropItem>
                   <div className="h-px bg-gray-100 dark:bg-white/8 mx-3 my-1" />
-                  <DropItem danger onClick={() => { logout(); navigate('/login'); setProfileOpen(false); }}>
+                  <DropItem danger onClick={handleLogout}>
                     🚪 Log Out
                   </DropItem>
                 </div>

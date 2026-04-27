@@ -75,6 +75,65 @@ function StatusBadge({ s }) {
   return <span className={`px-2.5 py-1 text-xs font-bold rounded-full border ${STATUS_STYLE[s]||STATUS_STYLE.OPEN}`}>{s?.replace(/_/g," ")}</span>;
 }
 
+// ─── Proof Viewer ─────────────────────────────────────────────────────────────
+function ProofViewer({ ipfsHash, description }) {
+  const [fileUrl, setFileUrl] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!ipfsHash) return;
+    const cid = ipfsHash.replace("/ipfs/", "").replace("ipfs://", "");
+    fetch(`https://gateway.pinata.cloud/ipfs/${cid}`)
+      .then(r => r.json())
+      .then(data => {
+        // data.fileUri is like "/ipfs/<cid>" — resolve to gateway URL
+        if (data.fileUri) {
+          const fileCid = data.fileUri.replace("/ipfs/", "").replace("ipfs://", "");
+          setFileUrl(`https://gateway.pinata.cloud/ipfs/${fileCid}`);
+        }
+      })
+      .catch(() => {
+        // Not JSON — the hash itself is the file
+        const cid2 = ipfsHash.replace("/ipfs/", "").replace("ipfs://", "");
+        setFileUrl(`https://gateway.pinata.cloud/ipfs/${cid2}`);
+      })
+      .finally(() => setLoading(false));
+  }, [ipfsHash]);
+
+  return (
+    <div className="mt-2 p-3 rounded-xl bg-white/6 border border-white/15">
+      {description && <p className="text-white/50 text-xs mb-2">{description}</p>}
+      {loading ? (
+        <p className="text-white/30 text-xs">Loading proof...</p>
+      ) : fileUrl ? (
+        <a href={fileUrl} target="_blank" rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-semibold transition-all border border-white/15">
+          📄 Open Proof File
+        </a>
+      ) : (
+        <p className="text-white/30 text-xs">Could not load proof.</p>
+      )}
+    </div>
+  );
+}
+
+// ─── GigId Row ────────────────────────────────────────────────────────────────
+function GigIdRow({ id }) {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    navigator.clipboard.writeText(id||"").then(() => { setCopied(true); setTimeout(()=>setCopied(false), 1500); });
+  };
+  return (
+    <div className="flex items-center gap-1.5 mt-0.5">
+      <p className="text-white/35 text-xs font-mono break-all leading-tight">{id}</p>
+      <button onClick={copy} title="Copy ID"
+        className="shrink-0 text-white/25 hover:text-white/70 transition-colors text-[10px] leading-none">
+        {copied ? "✓" : "⧉"}
+      </button>
+    </div>
+  );
+}
+
 // ─── Gig Card ─────────────────────────────────────────────────────────────────
 function GigCard({ gig, onApprove, onDispute, onView, idx }) {
   const [ref, vis] = useFade(idx*80);
@@ -94,7 +153,7 @@ function GigCard({ gig, onApprove, onDispute, onView, idx }) {
         <div>
           {gig.gigNumber && <p className="text-white/60 text-xs font-bold mb-1">Gig #{gig.gigNumber}</p>}
           <h3 className="text-white font-semibold text-base group-hover:text-white transition-colors">{gig.title || "Untitled"}</h3>
-          <p className="text-white/35 text-xs font-mono mt-0.5">{(gig.gigId||gig._id)?.slice(0,22)}...</p>
+          <GigIdRow id={gig.gigId||gig._id} />
         </div>
         <div className="flex flex-col items-end gap-1.5">
           <StatusBadge s={gig.status}/>
@@ -142,14 +201,7 @@ function GigCard({ gig, onApprove, onDispute, onView, idx }) {
             <span className={`transition-transform duration-200 ${showProof?"-rotate-90":"rotate-0"}`}>▶</span>
           </button>
           {showProof && (
-            <div className="mt-2 p-3 rounded-xl bg-white/6 border border-white/15">
-              <p className="text-white/50 text-xs mb-2">IPFS proof hash:</p>
-              <a href={`https://gateway.pinata.cloud/${gig.proofIpfsHash}`} target="_blank" rel="noopener noreferrer"
-                className="text-white/60 text-xs font-mono break-all hover:underline">
-                {gig.proofIpfsHash}
-              </a>
-              <p className="text-white/30 text-[10px] mt-1">{gig.proofDescription}</p>
-            </div>
+            <ProofViewer ipfsHash={gig.proofIpfsHash} description={gig.proofDescription} />
           )}
         </div>
       )}
@@ -391,12 +443,12 @@ export default function CustomerJobs() {
 
       // Use read-only provider for view calls to avoid MetaMask noise on missing gigs
       const esc = new ethers.Contract(ESCROW_ADDR, ESCROW_ABI, readProvider);
-      const enriched = await Promise.all(jobs.map(async j => {
+      const enriched = (await Promise.all(jobs.map(async j => {
         try {
           const c = await esc.getGig(j._id);
           return {...j, gigId:c.gigId, gigNumber:Number(c.gigNumber), amount:ethers.formatEther(c.amount), status:STATUS_MAP[Number(c.status)]||j.status, proofIpfsHash:c.proofIpfsHash||j.proofIpfsHash};
-        } catch { return {...j, gigId:j._id, amount:String(j.srtAmount||0)}; }
-      }));
+        } catch { return null; } // not on-chain — skip
+      }))).filter(Boolean);
       setGigs(enriched);
     } catch(e) { console.error(e); }
     finally { setLoading(false); }

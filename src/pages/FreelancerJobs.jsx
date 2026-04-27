@@ -76,6 +76,23 @@ function StatusBadge({ s }) {
   return <span className={`px-2.5 py-1 text-xs font-bold rounded-full border ${STATUS_STYLES[s]||STATUS_STYLES.OPEN}`}>{s?.replace(/_/g," ")}</span>;
 }
 
+// ─── GigId Row ────────────────────────────────────────────────────────────────
+function GigIdRow({ id }) {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    navigator.clipboard.writeText(id||"").then(() => { setCopied(true); setTimeout(()=>setCopied(false), 1500); });
+  };
+  return (
+    <div className="flex items-center gap-1.5 mt-0.5">
+      <p className="text-white/35 text-xs font-mono break-all leading-tight">{id}</p>
+      <button onClick={copy} title="Copy ID"
+        className="shrink-0 text-white/25 hover:text-white/70 transition-colors text-[10px] leading-none">
+        {copied ? "✓" : "⧉"}
+      </button>
+    </div>
+  );
+}
+
 // ─── Job Card ─────────────────────────────────────────────────────────────────
 function JobCard({ job, onSubmit, onDispute, onView, idx }) {
   const [ref, vis] = useFade(idx * 80);
@@ -91,7 +108,7 @@ function JobCard({ job, onSubmit, onDispute, onView, idx }) {
         <div>
           {job.gigNumber && <p className="text-white/70 text-xs font-bold mb-1">Gig #{job.gigNumber}</p>}
           <h3 className="text-white font-semibold text-base">{job.title || "Untitled Gig"}</h3>
-          <p className="text-white/40 text-xs font-mono mt-0.5">{(job.gigId||job._id)?.slice(0,20)}...</p>
+          <GigIdRow id={job.gigId||job._id} />
         </div>
         <div className="flex flex-col items-end gap-1.5">
           <StatusBadge s={job.status} />
@@ -115,6 +132,24 @@ function JobCard({ job, onSubmit, onDispute, onView, idx }) {
         <div className="flex items-center gap-2 mb-3 py-1.5 px-3 rounded-lg bg-white/6 border border-white/15">
           <span className="text-xs">🎉</span>
           <span className="text-white/70 text-xs font-semibold">{job.amount} SRT paid to your wallet!</span>
+        </div>
+      )}
+      {job.status === "DISPUTED_AI" && (
+        <div className="flex items-center gap-2 mb-3 py-1.5 px-3 rounded-lg bg-orange-500/10 border border-orange-500/25">
+          <span className="text-xs">🤖</span>
+          <span className="text-orange-300 text-xs font-semibold">AI is reviewing this dispute</span>
+        </div>
+      )}
+      {job.status === "DISPUTED_KLEROS" && (
+        <div className="flex items-center gap-2 mb-3 py-1.5 px-3 rounded-lg bg-red-500/10 border border-red-500/25">
+          <span className="text-xs">⚖️</span>
+          <span className="text-red-300 text-xs font-semibold">Kleros jurors are voting on this case</span>
+        </div>
+      )}
+      {job.status === "DISPUTED_HUMAN" && (
+        <div className="flex items-center gap-2 mb-3 py-1.5 px-3 rounded-lg bg-pink-500/10 border border-pink-500/25">
+          <span className="text-xs">👤</span>
+          <span className="text-pink-300 text-xs font-semibold">Awaiting human admin arbitration</span>
         </div>
       )}
 
@@ -188,7 +223,7 @@ export default function FreelancerDashboard() {
   const [heroBannerLoaded, setHeroBannerLoaded] = useState(false);
 
   // Stats derived from jobs
-  const activeJobs    = myJobs.filter(j => ["ASSIGNED","PROOF_SUBMITTED"].includes(j.status));
+  const activeJobs    = myJobs.filter(j => ["ASSIGNED","PROOF_SUBMITTED","DISPUTED_AI","DISPUTED_KLEROS","DISPUTED_HUMAN"].includes(j.status));
   const completedJobs = myJobs.filter(j => j.status === "COMPLETED");
   const pendingSRT    = activeJobs.reduce((s,j) => s + parseFloat(j.amount||0), 0);
   const earnedSRT     = completedJobs.reduce((s,j) => s + parseFloat(j.amount||0), 0);
@@ -216,12 +251,12 @@ export default function FreelancerDashboard() {
 
       // Use read-only provider to avoid MetaMask noise on missing gigs
       const escrow = new ethers.Contract(ESCROW_ADDR, ESCROW_ABI, readProvider);
-      const enriched = await Promise.all(jobs.map(async j => {
+      const enriched = (await Promise.all(jobs.map(async j => {
         try {
           const c = await escrow.getGig(j._id);
           return { ...j, gigId: c.gigId, gigNumber: Number(c.gigNumber), amount: ethers.formatEther(c.amount), status: STATUS_MAP[Number(c.status)] || j.status };
-        } catch { return { ...j, gigId: j._id, amount: String(j.srtAmount||0) }; }
-      }));
+        } catch { return null; } // not on-chain — skip
+      }))).filter(Boolean);
       setMyJobs(enriched);
 
       // Open jobs for browse tab
