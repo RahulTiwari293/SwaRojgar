@@ -54,7 +54,9 @@ async function main() {
         escrowArtifact.bytecode,
         wallet
     );
-    const escrow = await EscrowFactory.deploy(tokenAddress);
+    // Kleros Court Sepolia address + empty extra data
+    const KLEROS_ARBITRATOR = "0x90992fb4E15ce0C59aEFfb376460Fda4Ee19C879";
+    const escrow = await EscrowFactory.deploy(tokenAddress, KLEROS_ARBITRATOR, "0x");
     await escrow.waitForDeployment();
     const escrowAddress = await escrow.getAddress();
 
@@ -73,8 +75,8 @@ async function main() {
     console.log("   Total Supply:", ethers.formatEther(totalSupply), symbol);
 
     console.log("\n📊 Escrow Details:");
-    console.log("   Token Address:", await escrow.srtToken());
-    console.log("   Platform Fee:", await escrow.platformFeePercent(), "basis points (2%)");
+    console.log("   Token Address:", tokenAddress);
+    console.log("   Platform Fee: 200 basis points (2%)");
 
     // Save deployment info
     const network = await provider.getNetwork();
@@ -94,7 +96,7 @@ async function main() {
             GigEscrow: {
                 address: escrowAddress,
                 tokenAddress: tokenAddress,
-                platformFee: (await escrow.platformFeePercent()).toString()
+                platformFee: "200"
             }
         }
     };

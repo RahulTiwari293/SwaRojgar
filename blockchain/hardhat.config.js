@@ -9,12 +9,12 @@ export default {
             optimizer: {
                 enabled: true,
                 runs: 200
-            }
+            },
+            viaIR: true
         }
     },
     networks: {
         hardhat: {
-            type: "edr-simulated",
             chainId: 1337
         },
         sepolia: {

@@ -14,7 +14,7 @@
 import React from "react";
 
 // ─── Shimmer base ─────────────────────────────────────────────────────────────
-const shimmer = "animate-pulse bg-white/8 rounded-xl";
+const shimmer = "animate-pulse bg-surface-2 rounded-xl";
 
 export function SkeletonBox({ h = "h-16", w = "w-full", className = "" }) {
     return <div className={`${shimmer} ${h} ${w} ${className}`} />;
@@ -36,7 +36,7 @@ export function SkeletonText({ lines = 3, className = "" }) {
 
 export function SkeletonGigCard() {
     return (
-        <div className="rounded-2xl border border-white/8 bg-white/4 p-5 space-y-4">
+        <div className="rounded-2xl border border-hairline bg-surface p-5 space-y-4">
             {/* Header */}
             <div className="flex items-start justify-between gap-4">
                 <div className="space-y-2 flex-1">
@@ -50,7 +50,7 @@ export function SkeletonGigCard() {
             <SkeletonText lines={2} />
 
             {/* Footer */}
-            <div className="flex items-center justify-between pt-2 border-t border-white/5">
+            <div className="flex items-center justify-between pt-2 border-t border-hairline">
                 <SkeletonBox h="h-4" w="w-24" />
                 <SkeletonBox h="h-8" w="w-20" className="rounded-xl" />
             </div>
@@ -62,7 +62,7 @@ export function SkeletonDisputePanel() {
     return (
         <div className="space-y-6">
             {/* Gig overview */}
-            <div className="rounded-2xl border border-white/8 bg-white/4 p-6 space-y-4">
+            <div className="rounded-2xl border border-hairline bg-surface p-6 space-y-4">
                 <div className="flex items-center justify-between">
                     <SkeletonBox h="h-6" w="w-40" />
                     <SkeletonBox h="h-6" w="w-24" className="rounded-full" />
@@ -88,7 +88,7 @@ export function SkeletonDisputePanel() {
             </div>
 
             {/* AI Card skeleton */}
-            <div className="rounded-2xl border border-white/8 bg-white/4 p-6 space-y-4">
+            <div className="rounded-2xl border border-hairline bg-surface p-6 space-y-4">
                 <div className="flex items-center gap-3">
                     <SkeletonBox h="h-10" w="w-10" className="rounded-full" />
                     <div className="space-y-1 flex-1">
@@ -110,7 +110,7 @@ export function SkeletonDisputePanel() {
 
 export function SkeletonNavbar() {
     return (
-        <div className="h-16 border-b border-white/8 bg-black/60 backdrop-blur-xl flex items-center px-6 gap-4">
+        <div className="h-16 border-b border-hairline bg-surface/80 backdrop-blur-xl flex items-center px-6 gap-4">
             <SkeletonBox h="h-8" w="w-32" />
             <div className="flex-1" />
             <SkeletonBox h="h-8" w="w-24" className="rounded-full" />

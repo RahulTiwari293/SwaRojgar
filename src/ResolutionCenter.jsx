@@ -497,7 +497,7 @@ export default function ResolutionCenter() {
     const isParty      = isClient || isFreelancer;
 
     return (
-        <div className="min-h-screen bg-[#0a0a0a] text-white">
+        <div className="min-h-screen bg-background text-white">
             <Navbar />
 
             <div className="max-w-4xl mx-auto px-4 py-8">

@@ -64,64 +64,60 @@ export default function Onboarding() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-950 flex items-center justify-center px-4">
-      <div className="w-full max-w-md space-y-8">
+    <div className="min-h-screen bg-background flex items-center justify-center px-4">
+      {/* Ambient */}
+      <div className="fixed inset-0 pointer-events-none -z-10">
+        <div className="absolute top-1/3 right-1/4 w-96 h-96 rounded-full bg-primary/5 blur-3xl animate-float-slow" />
+        <div className="absolute bottom-1/4 left-1/4 w-72 h-72 rounded-full bg-accent/4 blur-3xl" />
+      </div>
 
+      <div className="w-full max-w-md space-y-7 animate-fade-in">
         <div className="text-center">
           <img src={logo} alt="SwaRojgar" className="h-9 w-auto object-contain brightness-0 invert mx-auto mb-6" />
-          <h1 className="text-3xl font-black text-white">One last step</h1>
-          <p className="text-white/40 text-sm mt-2">
+          <h1 className="text-display text-3xl font-semibold text-foreground">One last step</h1>
+          <p className="text-muted-foreground text-sm mt-2">
             Welcome{firstName ? `, ${firstName}` : ""}! How will you use SwaRojgar?
           </p>
         </div>
 
         {error && (
-          <div className="p-3 rounded-xl bg-red-900/20 border border-red-500/20 text-red-400 text-sm text-center">
+          <div className="p-3 rounded-xl bg-[var(--destructive-bg)] border border-destructive/20 text-destructive text-sm text-center">
             {error}
           </div>
         )}
 
         <div className="grid grid-cols-2 gap-4">
           {[
-            { val: "client",     icon: "🧑‍💼", title: "I'm a Client",     desc: "I want to post gigs and hire talent" },
-            { val: "freelancer", icon: "👷",   title: "I'm a Freelancer", desc: "I want to work and earn SRT tokens" },
+            { val:"client",     icon:"🧑‍💼", title:"I'm a Client",     desc:"Post gigs and hire talent" },
+            { val:"freelancer", icon:"👷",   title:"I'm a Freelancer", desc:"Work on gigs and earn SRT" },
           ].map(opt => (
-            <button
-              key={opt.val}
-              type="button"
-              onClick={() => setUserType(opt.val)}
-              className={`p-5 rounded-2xl border-2 text-left transition-all duration-200
+            <button key={opt.val} type="button" onClick={() => setUserType(opt.val)}
+              className={`p-5 rounded-2xl border-2 text-left transition-all duration-200 shadow-card
                 ${userType === opt.val
-                  ? "border-white bg-white text-black scale-[1.02] shadow-xl"
-                  : "border-white/10 bg-white/5 text-white/70 hover:border-white/30 hover:bg-white/8"}`}
-            >
+                  ? "border-primary bg-primary/10 scale-[1.02]"
+                  : "border-hairline bg-surface text-muted-foreground hover:border-primary/40 hover:bg-surface-2"}`}>
               <div className="text-3xl mb-3">{opt.icon}</div>
-              <div className={`font-bold text-sm mb-1 ${userType === opt.val ? "text-black" : "text-white"}`}>
+              <div className={`font-semibold text-sm mb-1 ${userType === opt.val ? "text-foreground" : "text-foreground/80"}`}>
                 {opt.title}
               </div>
-              <div className={`text-xs leading-relaxed ${userType === opt.val ? "text-black/60" : "text-white/40"}`}>
-                {opt.desc}
-              </div>
+              <div className="text-xs text-muted-foreground leading-relaxed">{opt.desc}</div>
             </button>
           ))}
         </div>
 
-        <button
-          onClick={handleFinish}
-          disabled={loading}
-          className="w-full py-4 rounded-2xl bg-white text-black font-black text-base
-            hover:bg-gray-100 transition-all hover:scale-[1.01] shadow-xl
-            disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100"
-        >
+        <button onClick={handleFinish} disabled={loading}
+          className="w-full py-4 rounded-2xl bg-gold text-white font-semibold text-base
+            shadow-glow hover:opacity-90 transition-all hover:scale-[1.01]
+            disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100">
           {loading ? (
             <span className="flex items-center justify-center gap-2">
-              <span className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
-              Setting up...
+              <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/>
+              Setting up��
             </span>
           ) : `Continue as ${userType === "client" ? "Client →" : "Freelancer →"}`}
         </button>
 
-        <p className="text-white/20 text-xs text-center">
+        <p className="text-muted-foreground/50 text-xs text-center">
           You can always switch roles later from your settings.
         </p>
       </div>

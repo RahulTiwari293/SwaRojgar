@@ -114,7 +114,7 @@ export default function LandingPage() {
   const scrollTo = (id) => { document.getElementById(id)?.scrollIntoView({ behavior: "smooth" }); setMenuOpen(false); };
 
   return (
-    <div className="bg-[#0a0a0a] text-white min-h-screen font-sans antialiased">
+    <div className="bg-background text-white min-h-screen font-sans antialiased">
 
       {/* ══ NAVBAR ══════════════════════════════════════════════════════════════ */}
       <header className={`fixed top-0 inset-x-0 z-50 transition-all duration-300

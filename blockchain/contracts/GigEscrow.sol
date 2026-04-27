@@ -194,7 +194,7 @@ contract GigEscrow is ReentrancyGuard, Ownable, IArbitrable, IEvidence {
         // Pull tokens from client into escrow
         require(
             srtToken.transferFrom(msg.sender, address(this), _amount),
-            "GigEscrow: Token transfer failed — did you approve?"
+            "GigEscrow: Token transfer failed - did you approve?"
         );
 
         uint256 evidenceId = metaEvidenceCount++;
@@ -470,9 +470,9 @@ contract GigEscrow is ReentrancyGuard, Ownable, IArbitrable, IEvidence {
      * @dev This should be protected by a Gnosis Safe multisig in production.
      *      Only reachable when Kleros returns ruling=0 (refuse to arbitrate) OR
      *      in extreme edge cases (contract bug, Kleros downtime, etc.).
-     * @param _releaseToFreelancer True = pay freelancer, False = refund client.
+     * @param _releasePayment True = pay freelancer, False = refund client.
      */
-    function humanFinalArbitration(string memory _gigId, bool _releaseToFreelancer)
+    function humanFinalArbitration(string memory _gigId, bool _releasePayment)
         external
         onlyOwner
         nonReentrant
@@ -484,7 +484,7 @@ contract GigEscrow is ReentrancyGuard, Ownable, IArbitrable, IEvidence {
             "GigEscrow: Only callable in DISPUTED_HUMAN state"
         );
 
-        if (_releaseToFreelancer) {
+        if (_releasePayment) {
             gig.status = GigStatus.COMPLETED;
             _releaseToFreelancer(_gigId);
             emit GigResolved(_gigId, true, 3);

@@ -6,7 +6,7 @@ import Rightbar from "./Rightbar";
 
 function Home() {
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 transition-colors">
+    <div className="min-h-screen bg-background transition-colors">
       <Navbar />
 
       <div className="max-w-[1400px] mx-auto px-6 py-6">

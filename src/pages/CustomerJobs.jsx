@@ -1,15 +1,3 @@
-/**
- * CustomerJobs.jsx — Client (Buyer) Dashboard
- *
- * Sections:
- *  - Animated hero banner with client image
- *  - Live SRT stats (spent, locked, active gigs)
- *  - My posted gigs with Approve / Release / Dispute actions
- *  - Create new gig modal (posts to backend + locks SRT)
- *  - Proof review panel (view IPFS proof before approving)
- *  - All buttons wired to live contract + backend
- */
-
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { ethers } from "ethers";
 import { useNavigate } from "react-router-dom";
@@ -22,7 +10,6 @@ const BACKEND     = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:5010";
 const ESCROW_ADDR = (import.meta.env.VITE_ESCROW_CONTRACT_ADDRESS || "0x8eFa974E68A449B25Db77B73841dc14921A98Ba5").trim();
 const TOKEN_ADDR  = (import.meta.env.VITE_TOKEN_CONTRACT_ADDRESS  || "0x5D3976fc3F92174da8F851a12a5b0056CC6783A0").trim();
 const RPC_URL     = import.meta.env.VITE_RPC_URL || "https://rpc.sepolia.org";
-// Read-only provider — avoids MetaMask popup for failed view calls
 const readProvider = new ethers.JsonRpcProvider(RPC_URL);
 
 const TOKEN_ABI = [
@@ -38,23 +25,24 @@ const ESCROW_ABI = [
 ];
 
 const STATUS_MAP = {0:"OPEN",1:"ASSIGNED",2:"PROOF_SUBMITTED",3:"DISPUTED_AI",4:"DISPUTED_KLEROS",5:"DISPUTED_HUMAN",6:"COMPLETED",7:"REFUNDED"};
-const STATUS_STYLE = {
-  OPEN:            "bg-white/10 border-white/20 text-white/80",
-  ASSIGNED:        "bg-white/15 border-white/25 text-white",
-  PROOF_SUBMITTED: "bg-white/20 border-white/30 text-white font-bold",
-  COMPLETED:       "bg-white/10 border-white/15 text-white/60",
-  DISPUTED_AI:     "bg-white/8 border-white/15 text-white/70",
-  DISPUTED_KLEROS: "bg-white/8 border-white/15 text-white/70",
-  DISPUTED_HUMAN:  "bg-white/8 border-white/15 text-white/70",
-  REFUNDED:        "bg-white/5 border-white/10 text-white/40",
+
+const STATUS_META = {
+  OPEN:            { label:"Open",            rail:"bg-grad-success", pill:"bg-[var(--success-bg)] text-success border-success/30",       dot:"bg-success" },
+  ASSIGNED:        { label:"Assigned",        rail:"bg-escrow",       pill:"bg-[var(--info-bg)] text-info border-info/30",                dot:"bg-info" },
+  PROOF_SUBMITTED: { label:"In Review",       rail:"bg-gold",         pill:"bg-primary/10 text-primary border-primary/30",               dot:"bg-primary" },
+  DISPUTED_AI:     { label:"Disputed · AI",   rail:"bg-grad-danger",  pill:"bg-[var(--destructive-bg)] text-destructive border-destructive/30", dot:"bg-destructive" },
+  DISPUTED_KLEROS: { label:"Disputed · Kleros",rail:"bg-grad-danger", pill:"bg-[var(--destructive-bg)] text-destructive border-destructive/30", dot:"bg-destructive" },
+  DISPUTED_HUMAN:  { label:"Disputed · Admin",rail:"bg-grad-danger",  pill:"bg-[var(--destructive-bg)] text-destructive border-destructive/30", dot:"bg-destructive" },
+  COMPLETED:       { label:"Completed",       rail:"bg-[var(--muted-foreground)]", pill:"bg-surface-2 text-muted-foreground border-hairline", dot:"bg-muted-foreground" },
+  REFUNDED:        { label:"Refunded",        rail:"bg-surface-2",    pill:"bg-surface-2 text-muted-foreground border-hairline",         dot:"bg-muted-foreground" },
 };
 
-// ─── Hooks & helpers ──────────────────────────────────────────────────────────
+// ─── Hooks ────────────────────────────────────────────────────────────────────
 function useFade(delay = 0) {
   const ref = useRef(null);
   const [vis, setVis] = useState(false);
   useEffect(() => {
-    const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) { setVis(true); obs.disconnect(); }}, { threshold: 0.08 });
+    const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) { setVis(true); obs.disconnect(); }}, { threshold: 0.06 });
     if (ref.current) obs.observe(ref.current);
     return () => obs.disconnect();
   }, []);
@@ -71,65 +59,66 @@ function Counter({ target }) {
   return <span>{v.toFixed(2)}</span>;
 }
 
-function StatusBadge({ s }) {
-  return <span className={`px-2.5 py-1 text-xs font-bold rounded-full border ${STATUS_STYLE[s]||STATUS_STYLE.OPEN}`}>{s?.replace(/_/g," ")}</span>;
-}
-
-// ─── Proof Viewer ─────────────────────────────────────────────────────────────
-function ProofViewer({ ipfsHash, description }) {
-  const [fileUrl, setFileUrl] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!ipfsHash) return;
-    const cid = ipfsHash.replace("/ipfs/", "").replace("ipfs://", "");
-    fetch(`https://gateway.pinata.cloud/ipfs/${cid}`)
-      .then(r => r.json())
-      .then(data => {
-        // data.fileUri is like "/ipfs/<cid>" — resolve to gateway URL
-        if (data.fileUri) {
-          const fileCid = data.fileUri.replace("/ipfs/", "").replace("ipfs://", "");
-          setFileUrl(`https://gateway.pinata.cloud/ipfs/${fileCid}`);
-        }
-      })
-      .catch(() => {
-        // Not JSON — the hash itself is the file
-        const cid2 = ipfsHash.replace("/ipfs/", "").replace("ipfs://", "");
-        setFileUrl(`https://gateway.pinata.cloud/ipfs/${cid2}`);
-      })
-      .finally(() => setLoading(false));
-  }, [ipfsHash]);
-
+// ─── Status Pill ──────────────────────────────────────────────────────────────
+function StatusPill({ s }) {
+  const m = STATUS_META[s] || STATUS_META.OPEN;
   return (
-    <div className="mt-2 p-3 rounded-xl bg-white/6 border border-white/15">
-      {description && <p className="text-white/50 text-xs mb-2">{description}</p>}
-      {loading ? (
-        <p className="text-white/30 text-xs">Loading proof...</p>
-      ) : fileUrl ? (
-        <a href={fileUrl} target="_blank" rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-semibold transition-all border border-white/15">
-          📄 Open Proof File
-        </a>
-      ) : (
-        <p className="text-white/30 text-xs">Could not load proof.</p>
-      )}
-    </div>
+    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider ${m.pill}`}>
+      <span className={`h-1.5 w-1.5 rounded-full animate-pulse-dot ${m.dot}`} />
+      {m.label}
+    </span>
   );
 }
 
 // ─── GigId Row ────────────────────────────────────────────────────────────────
 function GigIdRow({ id }) {
   const [copied, setCopied] = useState(false);
-  const copy = () => {
+  const copy = (e) => {
+    e.stopPropagation();
     navigator.clipboard.writeText(id||"").then(() => { setCopied(true); setTimeout(()=>setCopied(false), 1500); });
   };
   return (
-    <div className="flex items-center gap-1.5 mt-0.5">
-      <p className="text-white/35 text-xs font-mono break-all leading-tight">{id}</p>
-      <button onClick={copy} title="Copy ID"
-        className="shrink-0 text-white/25 hover:text-white/70 transition-colors text-[10px] leading-none">
+    <div className="flex items-center gap-1.5 mt-1">
+      <p className="font-mono-tab text-[11px] text-muted-foreground break-all leading-tight">{id}</p>
+      <button onClick={copy} title="Copy"
+        className="shrink-0 text-muted-foreground/50 hover:text-muted-foreground transition-colors text-[11px]">
         {copied ? "✓" : "⧉"}
       </button>
+    </div>
+  );
+}
+
+// ─── Proof Viewer ─────────────────────────────────────────────────────────────
+function ProofViewer({ ipfsHash }) {
+  const [fileUrl, setFileUrl] = useState(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    if (!ipfsHash) return;
+    const cid = ipfsHash.replace("/ipfs/","").replace("ipfs://","");
+    fetch(`https://gateway.pinata.cloud/ipfs/${cid}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.fileUri) {
+          const fc = data.fileUri.replace("/ipfs/","").replace("ipfs://","");
+          setFileUrl(`https://gateway.pinata.cloud/ipfs/${fc}`);
+        }
+      })
+      .catch(() => setFileUrl(`https://gateway.pinata.cloud/ipfs/${cid}`))
+      .finally(() => setLoading(false));
+  }, [ipfsHash]);
+  return (
+    <div className="mt-2 p-3 rounded-xl bg-surface-2 border border-hairline">
+      {loading ? (
+        <p className="text-muted-foreground text-xs">Loading proof…</p>
+      ) : fileUrl ? (
+        <a href={fileUrl} target="_blank" rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-surface border border-hairline
+            hover:border-primary/40 text-foreground text-xs font-semibold transition-all">
+          📄 Open Proof File
+        </a>
+      ) : (
+        <p className="text-muted-foreground text-xs">Could not load proof.</p>
+      )}
     </div>
   );
 }
@@ -142,92 +131,136 @@ function GigCard({ gig, onApprove, onDispute, onView, idx }) {
   const hasProof   = Boolean(gig.proofIpfsHash);
   const canApprove = gig.status === "PROOF_SUBMITTED";
   const canDispute = gig.status === "PROOF_SUBMITTED";
+  const meta       = STATUS_META[gig.status] || STATUS_META.OPEN;
 
   return (
-    <div ref={ref} style={{transitionDelay:`${idx*80}ms`}}
-      className={`group rounded-2xl border border-white/8 bg-white/4 hover:bg-white/6 hover:border-white/20 backdrop-blur-sm p-5 transition-all duration-500 hover:scale-[1.01] hover:shadow-xl hover:shadow-black/20
-        ${vis?"opacity-100 translate-y-0":"opacity-0 translate-y-6"}`}>
+    <article ref={ref} style={{transitionDelay:`${idx*80}ms`, animationDelay:`${idx*80}ms`}}
+      className={`group shadow-card relative overflow-hidden rounded-2xl border border-hairline bg-surface
+        transition-all duration-500 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-glow
+        ${vis ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}>
 
-      {/* Header */}
-      <div className="flex items-start justify-between gap-3 mb-3 flex-wrap">
-        <div>
-          {gig.gigNumber && <p className="text-white/60 text-xs font-bold mb-1">Gig #{gig.gigNumber}</p>}
-          <h3 className="text-white font-semibold text-base group-hover:text-white transition-colors">{gig.title || "Untitled"}</h3>
-          <GigIdRow id={gig.gigId||gig._id} />
-        </div>
-        <div className="flex flex-col items-end gap-1.5">
-          <StatusBadge s={gig.status}/>
-          <span className="text-white/60 font-bold text-lg">{gig.amount||gig.srtAmount} SRT</span>
-        </div>
-      </div>
+      {/* Left color rail */}
+      <div className={`absolute inset-y-0 left-0 w-1 ${meta.rail}`} />
 
-      {gig.content && <p className="text-white/35 text-xs mb-3 line-clamp-2">{gig.content}</p>}
-
-      {/* Assignee */}
-      {gig.assignedFreelancer && (
-        <div className="flex items-center gap-2 mb-3 p-2.5 rounded-xl bg-white/4 border border-white/6">
-          <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center text-xs font-bold text-white">
-            {gig.assignedFreelancer?.firstName?.[0] || "F"}
+      <div className="p-5 pl-7">
+        {/* Header row */}
+        <div className="flex items-start justify-between gap-3 mb-3 flex-wrap">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+              {gig.gigNumber && (
+                <span className="font-mono-tab rounded-md bg-surface-2 px-2 py-0.5 text-[11px] text-muted-foreground">
+                  GIG #{gig.gigNumber}
+                </span>
+              )}
+              <StatusPill s={gig.status} />
+            </div>
+            <h3 className="text-display text-base font-semibold text-foreground truncate">{gig.title || "Untitled"}</h3>
+            <GigIdRow id={gig.gigId||gig._id} />
           </div>
-          <div>
-            <p className="text-white/70 text-xs font-semibold">
-              {gig.assignedFreelancer?.firstName} {gig.assignedFreelancer?.lastName}
+          {/* Amount box */}
+          <div className="rounded-xl border border-hairline bg-background/40 px-4 py-2.5 text-right shrink-0">
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">
+              {isSettled ? "Released" : "Locked"}
             </p>
-            <p className="text-white/30 text-[10px]">Assigned freelancer</p>
+            <p className="text-display text-xl font-semibold text-foreground">
+              {parseFloat(gig.amount||gig.srtAmount||0).toFixed(1)}
+              <span className="text-sm text-muted-foreground ml-1">SRT</span>
+            </p>
           </div>
         </div>
-      )}
 
-      {/* Locked indicator */}
-      {!isSettled && (
-        <div className="flex items-center gap-2 mb-3 py-1.5 px-3 rounded-lg bg-white/4 border border-white/15">
-          <span className="text-white/70 text-xs">🔒</span>
-          <span className="text-white/50 text-xs">{gig.amount||gig.srtAmount} SRT locked in escrow</span>
-        </div>
-      )}
-      {gig.status === "COMPLETED" && (
-        <div className="flex items-center gap-2 mb-3 py-1.5 px-3 rounded-lg bg-white/6 border border-white/15">
-          <span className="text-xs">✅</span>
-          <span className="text-white/70 text-xs font-semibold">Payment released to freelancer</span>
-        </div>
-      )}
+        {gig.content && <p className="text-muted-foreground text-xs mb-3 line-clamp-2">{gig.content}</p>}
 
-      {/* Proof viewer */}
-      {hasProof && (
-        <div className="mb-3">
-          <button onClick={() => setShowProof(v=>!v)}
-            className="flex items-center gap-2 text-white/60 hover:text-white text-xs font-semibold transition-colors">
-            📎 {showProof ? "Hide" : "View"} submitted proof
-            <span className={`transition-transform duration-200 ${showProof?"-rotate-90":"rotate-0"}`}>▶</span>
-          </button>
-          {showProof && (
-            <ProofViewer ipfsHash={gig.proofIpfsHash} description={gig.proofDescription} />
+        {/* Assignee */}
+        {gig.assignedFreelancer && (
+          <div className="flex items-center gap-2.5 mb-3 p-2.5 rounded-xl bg-surface-2 border border-hairline">
+            <div className="w-7 h-7 rounded-full bg-gold flex items-center justify-center text-xs font-bold text-white">
+              {gig.assignedFreelancer?.firstName?.[0] || "F"}
+            </div>
+            <div>
+              <p className="text-foreground text-xs font-semibold">
+                {gig.assignedFreelancer?.firstName} {gig.assignedFreelancer?.lastName}
+              </p>
+              <p className="text-muted-foreground text-[10px]">Assigned freelancer</p>
+            </div>
+          </div>
+        )}
+
+        {/* Status info strips */}
+        {!isSettled && (
+          <div className="flex items-center gap-2 mb-3 py-1.5 px-3 rounded-lg bg-surface-2 border border-hairline">
+            <span className="text-xs">🔒</span>
+            <span className="text-muted-foreground text-xs">
+              {parseFloat(gig.amount||gig.srtAmount||0).toFixed(2)} SRT locked in escrow
+            </span>
+          </div>
+        )}
+        {gig.status === "COMPLETED" && (
+          <div className="flex items-center gap-2 mb-3 py-1.5 px-3 rounded-lg bg-[var(--success-bg)] border border-success/20">
+            <span className="text-xs">✅</span>
+            <span className="text-success text-xs font-semibold">Payment released to freelancer</span>
+          </div>
+        )}
+        {gig.status === "DISPUTED_AI" && (
+          <div className="flex items-center gap-2 mb-3 py-1.5 px-3 rounded-lg bg-[var(--warning-bg)] border border-warning/20">
+            <span className="text-xs">🤖</span>
+            <span className="text-warning text-xs font-semibold">AI is reviewing this dispute</span>
+          </div>
+        )}
+        {gig.status === "DISPUTED_KLEROS" && (
+          <div className="flex items-center gap-2 mb-3 py-1.5 px-3 rounded-lg bg-[var(--destructive-bg)] border border-destructive/20">
+            <span className="text-xs">⚖️</span>
+            <span className="text-destructive text-xs font-semibold">Kleros jurors are voting</span>
+          </div>
+        )}
+
+        {/* Proof */}
+        {hasProof && (
+          <div className="mb-3">
+            <button onClick={() => setShowProof(v=>!v)}
+              className="flex items-center gap-2 text-muted-foreground hover:text-foreground text-xs font-semibold transition-colors">
+              📎 {showProof ? "Hide" : "View"} submitted proof
+              <span className={`transition-transform duration-200 text-[10px] ${showProof?"-rotate-90":"rotate-0"}`}>▶</span>
+            </button>
+            {showProof && <ProofViewer ipfsHash={gig.proofIpfsHash} />}
+          </div>
+        )}
+
+        {/* Divider */}
+        <div className="h-px bg-hairline mb-3" />
+
+        {/* Actions */}
+        <div className="flex gap-2 flex-wrap">
+          {canApprove && (
+            <button onClick={() => onApprove(gig.gigId||gig._id)}
+              className="bg-gold inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-semibold text-white shadow-glow hover:opacity-90 transition-all hover:scale-105">
+              ✅ Approve & Release
+            </button>
           )}
+          {canDispute && (
+            <button onClick={() => onDispute(gig.gigId||gig._id)}
+              className="bg-grad-danger inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-semibold text-white transition-all hover:scale-105">
+              ⚠️ Raise Dispute
+            </button>
+          )}
+          <button onClick={() => onView(gig.gigId||gig._id)}
+            className="glass inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-semibold text-muted-foreground hover:text-foreground transition-all">
+            ⚖️ Resolution
+          </button>
         </div>
-      )}
-
-      {/* Divider */}
-      <div className="h-px bg-white/5 mb-3"/>
-
-      {/* Actions */}
-      <div className="flex gap-2 flex-wrap">
-        {canApprove && (
-          <button onClick={() => onApprove(gig.gigId||gig._id)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white hover:bg-gray-100 text-black text-xs font-bold transition-all hover:scale-105 shadow-lg">
-            ✅ Approve & Release SRT
-          </button>
-        )}
-        {canDispute && (
-          <button onClick={() => onDispute(gig.gigId||gig._id)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-orange-600/70 hover:bg-orange-500 text-white text-xs font-bold transition-all hover:scale-105">
-            ⚠️ Raise Dispute
-          </button>
-        )}
-        <button onClick={() => onView(gig.gigId||gig._id)}
-          className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/6 hover:bg-white/10 text-white/50 hover:text-white text-xs font-semibold transition-all border border-white/8">
-          ⚖️ Resolution
-        </button>
       </div>
+    </article>
+  );
+}
+
+// ─── Field ────────────────────────────────────────────────────────────────────
+function Field({ label, value, onChange, placeholder, type = "text" }) {
+  return (
+    <div>
+      <label className="text-muted-foreground text-xs font-semibold mb-1.5 block uppercase tracking-wide">{label}</label>
+      <input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder}
+        className="w-full bg-surface-2 border border-hairline rounded-xl px-4 py-2.5 text-sm text-foreground
+          placeholder-muted-foreground/50 focus:outline-none focus:border-primary/50 transition-colors"/>
     </div>
   );
 }
@@ -238,99 +271,71 @@ function CreateGigModal({ onClose, onCreated, srtBalance, user }) {
   const userId = localStorage.getItem("userId");
   const token  = localStorage.getItem("token");
   const [form, setForm] = useState({ title:"", content:"", srtAmount:"", deadline:"" });
-  const [step, setStep]  = useState(1); // 1=details, 2=locking
+  const [step, setStep]  = useState(1);
   const [saving, setSaving] = useState(false);
   const set = (k,v) => setForm(f=>({...f,[k]:v}));
 
   const handleCreate = async () => {
-    if (!form.title || !form.content || !form.srtAmount) {
-      pushToast("Please fill in all required fields","warning"); return;
-    }
+    if (!form.title || !form.content || !form.srtAmount) { pushToast("Please fill in all required fields","warning"); return; }
     if (!wallet.signer) { pushToast("Connect your wallet first","warning"); return; }
-    if (parseFloat(form.srtAmount) > parseFloat(srtBalance)) {
-      pushToast(`Insufficient SRT balance (${srtBalance} SRT)`,"error"); return;
-    }
+    if (parseFloat(form.srtAmount) > parseFloat(srtBalance)) { pushToast(`Insufficient SRT balance (${srtBalance} SRT)`,"error"); return; }
     setSaving(true); setStep(2);
     try {
-      // 1. Save to backend
       const res  = await fetch(`${BACKEND}/api/posts`, {
         method:"POST", headers:{"Content-Type":"application/json", Authorization:`Bearer ${token}`},
         body: JSON.stringify({ userId, title:form.title, content:form.content, userType:"client", postType:"job",
-          srtAmount: parseFloat(form.srtAmount), deadline: form.deadline ? Math.floor(new Date(form.deadline)/1000) : Math.floor(Date.now()/1000) + 30*24*60*60,
+          srtAmount: parseFloat(form.srtAmount), deadline: form.deadline ? Math.floor(new Date(form.deadline)/1000) : Math.floor(Date.now()/1000)+30*24*60*60,
           walletAddress: wallet.address })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
       const gigId = data.post._id;
 
-      // 2. Upload MetaEvidence to IPFS (required by ERC-1497 and by the smart contract)
       pushToast("Step 1/3 — Uploading gig context to IPFS...","loading",20000);
       const metaRes = await fetch(`${BACKEND}/api/dispute/upload-meta`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          gigId,
-          title:       form.title,
-          description: form.content,
-          budget:      form.srtAmount,
-          deadline:    form.deadline || null,
-          clientName:  user ? `${user.firstName} ${user.lastName}` : "Client",
-        }),
+        method:"POST", headers:{"Content-Type":"application/json", Authorization:`Bearer ${token}`},
+        body: JSON.stringify({ gigId, title:form.title, description:form.content, budget:form.srtAmount,
+          deadline:form.deadline||null, clientName: user ? `${user.firstName} ${user.lastName}` : "Client" }),
       });
-      if (!metaRes.ok) {
-        const errData = await metaRes.json().catch(() => ({}));
-        throw new Error(errData.error || "Failed to upload MetaEvidence to IPFS — check Pinata credentials in backend .env");
-      }
+      if (!metaRes.ok) { const e = await metaRes.json().catch(()=>({})); throw new Error(e.error||"IPFS upload failed"); }
       const { metaEvidenceUri } = await metaRes.json();
       pushToast("✅ MetaEvidence uploaded","success");
 
-      // 3. Approve token spend
       pushToast("Step 2/3 — Approve SRT spend in MetaMask...","loading",20000);
-      const tokenC  = new ethers.Contract(TOKEN_ADDR, TOKEN_ABI, wallet.signer);
-      const dec     = await tokenC.decimals();
-      const rawAmt  = ethers.parseUnits(form.srtAmount, dec);
-      const approTx = await tokenC.approve(ESCROW_ADDR, rawAmt);
-      await approTx.wait();
+      const tokenC = new ethers.Contract(TOKEN_ADDR, TOKEN_ABI, wallet.signer);
+      const dec    = await tokenC.decimals();
+      const rawAmt = ethers.parseUnits(form.srtAmount, dec);
+      await (await tokenC.approve(ESCROW_ADDR, rawAmt)).wait();
       pushToast("✅ Approval done","success");
 
-      // 4. Lock in escrow
       const receipt = await runTx(() => {
         const esc = new ethers.Contract(ESCROW_ADDR, ESCROW_ABI, wallet.signer);
-        // Default to 30 days from now if no deadline set (contract requires deadline > block.timestamp)
-        const dl  = form.deadline ? Math.floor(new Date(form.deadline)/1000) : Math.floor(Date.now()/1000) + 30*24*60*60;
+        const dl  = form.deadline ? Math.floor(new Date(form.deadline)/1000) : Math.floor(Date.now()/1000)+30*24*60*60;
         return esc.createGig(gigId, rawAmt, dl, metaEvidenceUri);
       }, "Locking SRT in escrow...");
 
       if (receipt) {
-        // Sync blockchain tx hash back to MongoDB post
         await fetch(`${BACKEND}/api/jobs/${gigId}/status`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ status: "OPEN", txHash: receipt.hash }),
-        }).catch(() => {}); // non-fatal
-
-        pushToast(`🔒 ${form.srtAmount} SRT locked! Gig #${data.post.gigNumber || "—"} is live.`,"success",6000);
-        onCreated();
-        onClose();
-      } else {
-        // runTx returned null — tx failed or was rejected
-        setStep(1);
-      }
+          method:"PATCH", headers:{"Content-Type":"application/json", Authorization:`Bearer ${token}`},
+          body: JSON.stringify({ status:"OPEN", txHash:receipt.hash }),
+        }).catch(()=>{});
+        pushToast(`🔒 ${form.srtAmount} SRT locked! Gig is live.`,"success",6000);
+        onCreated(); onClose();
+      } else { setStep(1); }
     } catch(e) { pushToast(e.reason||e.message,"error"); setStep(1); }
     finally { setSaving(false); }
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose}/>
-      <div className="relative w-full max-w-lg rounded-3xl border border-white/10 bg-gray-950/95 backdrop-blur-xl p-7 shadow-2xl space-y-5">
-        {/* Header */}
+      <div className="absolute inset-0 bg-black/75 backdrop-blur-sm" onClick={onClose}/>
+      <div className="relative w-full max-w-lg rounded-3xl border border-hairline bg-surface shadow-island backdrop-blur-xl p-7 space-y-5">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-white font-black text-xl">➕ Post a New Gig</h2>
-            <p className="text-white/40 text-xs mt-0.5">Funds lock automatically when you submit</p>
+            <h2 className="text-display text-xl font-semibold text-foreground">Post a New Gig</h2>
+            <p className="text-muted-foreground text-xs mt-0.5">Funds lock automatically on submit</p>
           </div>
-          <button onClick={onClose} className="text-white/30 hover:text-white text-2xl transition-colors leading-none">✕</button>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground text-xl transition-colors">✕</button>
         </div>
 
         {/* Step indicator */}
@@ -338,8 +343,8 @@ function CreateGigModal({ onClose, onCreated, srtBalance, user }) {
           {[1,2,3].map(s => (
             <React.Fragment key={s}>
               <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all
-                ${step >= s ? "bg-white text-black" : "bg-white/8 text-white/30"}`}>{s}</div>
-              {s<3 && <div className={`flex-1 h-0.5 rounded transition-all ${step>s ? "bg-white" : "bg-white/10"}`}/>}
+                ${step >= s ? "bg-gold text-white" : "bg-surface-2 text-muted-foreground border border-hairline"}`}>{s}</div>
+              {s<3 && <div className={`flex-1 h-0.5 rounded transition-all ${step>s ? "bg-gold" : "bg-hairline"}`}/>}
             </React.Fragment>
           ))}
         </div>
@@ -348,44 +353,41 @@ function CreateGigModal({ onClose, onCreated, srtBalance, user }) {
           <div className="space-y-4">
             <Field label="Gig Title *" value={form.title} onChange={v=>set("title",v)} placeholder="e.g. Build a React dashboard" />
             <div>
-              <label className="text-white/50 text-xs mb-1.5 block">Description *</label>
+              <label className="text-muted-foreground text-xs font-semibold mb-1.5 block uppercase tracking-wide">Description *</label>
               <textarea value={form.content} onChange={e=>set("content",e.target.value)} rows={3}
                 placeholder="Describe the work in detail..."
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-white/25 focus:outline-none focus:border-white/40 resize-none transition-colors"/>
+                className="w-full bg-surface-2 border border-hairline rounded-xl px-4 py-3 text-sm text-foreground
+                  placeholder-muted-foreground/50 focus:outline-none focus:border-primary/50 resize-none transition-colors"/>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-white/50 text-xs mb-1.5 block">SRT Amount *</label>
-                <input type="number" value={form.srtAmount} onChange={e=>set("srtAmount",e.target.value)} placeholder="e.g. 100"
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-white/25 focus:outline-none focus:border-white/40 transition-colors"/>
-                <p className="text-white/25 text-[10px] mt-1">Balance: {parseFloat(srtBalance||"0").toFixed(2)} SRT</p>
+                <Field label="SRT Amount *" type="number" value={form.srtAmount} onChange={v=>set("srtAmount",v)} placeholder="e.g. 100" />
+                <p className="text-muted-foreground text-[10px] mt-1">Balance: {parseFloat(srtBalance||"0").toFixed(2)} SRT</p>
               </div>
-              <div>
-                <label className="text-white/50 text-xs mb-1.5 block">Deadline (optional)</label>
-                <input type="date" value={form.deadline} onChange={e=>set("deadline",e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white/80 focus:outline-none focus:border-white/40 transition-colors"/>
-              </div>
+              <Field label="Deadline (optional)" type="date" value={form.deadline} onChange={v=>set("deadline",v)} placeholder="" />
             </div>
-
-            <div className="bg-white/4 border border-white/15 rounded-xl p-3 text-xs text-white/60">
-              <strong>3 steps:</strong> Upload gig context to IPFS, approve SRT spend, then lock tokens in escrow. Funds release only on your approval.
+            <div className="bg-surface-2 border border-hairline rounded-xl p-3 text-xs text-muted-foreground">
+              <strong className="text-foreground">3 steps:</strong> IPFS upload → Approve SRT → Lock in escrow. Funds release only on your approval.
             </div>
           </div>
         )}
 
         {step === 2 && (
-          <div className="flex flex-col items-center py-6 gap-4">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-white to-gray-200 flex items-center justify-center text-3xl animate-pulse">🔒</div>
-            <p className="text-white font-bold">Locking SRT in escrow...</p>
-            <p className="text-white/40 text-sm text-center">Check MetaMask for confirmation prompts. Don't close this window.</p>
+          <div className="flex flex-col items-center py-8 gap-4">
+            <div className="w-16 h-16 rounded-full bg-gold flex items-center justify-center text-3xl animate-pulse-dot">🔒</div>
+            <p className="text-foreground font-semibold">Locking SRT in escrow…</p>
+            <p className="text-muted-foreground text-sm text-center">Check MetaMask for prompts. Don't close this window.</p>
           </div>
         )}
 
         {step === 1 && (
           <div className="flex gap-3">
-            <button onClick={onClose} className="flex-1 py-3 rounded-xl bg-white/6 hover:bg-white/10 text-white/60 font-semibold text-sm transition-all border border-white/8">Cancel</button>
+            <button onClick={onClose}
+              className="flex-1 py-3 rounded-xl glass text-muted-foreground font-semibold text-sm transition-all hover:text-foreground">
+              Cancel
+            </button>
             <button onClick={handleCreate} disabled={saving}
-              className="flex-1 py-3 rounded-xl bg-white hover:bg-gray-100 text-black font-bold text-sm transition-all disabled:opacity-40 hover:scale-105 shadow-lg">
+              className="flex-1 py-3 rounded-xl bg-gold text-white font-semibold text-sm shadow-glow transition-all disabled:opacity-40 hover:opacity-90">
               🔒 Post & Lock SRT
             </button>
           </div>
@@ -395,12 +397,20 @@ function CreateGigModal({ onClose, onCreated, srtBalance, user }) {
   );
 }
 
-function Field({ label, value, onChange, placeholder }) {
+// ─── Stat Card ────────────────────────────────────────────────────────────────
+function StatCard({ label, val, icon, delay, tone }) {
+  const [ref, vis] = useFade(delay);
+  const iconCls = tone === "primary" ? "bg-primary/15 text-primary"
+    : tone === "success" ? "bg-[var(--success-bg)] text-success"
+    : tone === "warning" ? "bg-[var(--warning-bg)] text-warning"
+    : "bg-surface-2 text-muted-foreground";
   return (
-    <div>
-      <label className="text-white/50 text-xs mb-1.5 block">{label}</label>
-      <input value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder}
-        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-white/25 focus:outline-none focus:border-white/40 transition-colors"/>
+    <div ref={ref} style={{transitionDelay:`${delay}ms`}}
+      className={`shadow-card grain rounded-2xl border border-hairline bg-surface p-5 transition-all duration-700 hover:-translate-y-0.5 hover:border-primary/30
+        ${vis ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
+      <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl mb-4 ${iconCls}`}>{icon}</div>
+      <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">{label}</p>
+      <p className="text-display text-2xl font-semibold text-foreground"><Counter target={parseFloat(val)}/></p>
     </div>
   );
 }
@@ -433,21 +443,20 @@ export default function CustomerJobs() {
         if (u.ok) setUser(await u.json());
       }
       if (wallet.signer && wallet.address) {
-        const t   = new ethers.Contract(TOKEN_ADDR, TOKEN_ABI, wallet.signer);
+        const t = new ethers.Contract(TOKEN_ADDR, TOKEN_ABI, wallet.signer);
         const [r, d] = await Promise.all([t.balanceOf(wallet.address), t.decimals()]);
         setSrtBal(ethers.formatUnits(r, d));
       }
       const res  = await fetch(`${BACKEND}/api/jobs/customer/${userId}`, {headers:{Authorization:`Bearer ${token}`}});
       const data = await res.json();
       const jobs = Array.isArray(data) ? data : [];
-
-      // Use read-only provider for view calls to avoid MetaMask noise on missing gigs
-      const esc = new ethers.Contract(ESCROW_ADDR, ESCROW_ABI, readProvider);
+      const esc  = new ethers.Contract(ESCROW_ADDR, ESCROW_ABI, readProvider);
       const enriched = (await Promise.all(jobs.map(async j => {
         try {
           const c = await esc.getGig(j._id);
-          return {...j, gigId:c.gigId, gigNumber:Number(c.gigNumber), amount:ethers.formatEther(c.amount), status:STATUS_MAP[Number(c.status)]||j.status, proofIpfsHash:c.proofIpfsHash||j.proofIpfsHash};
-        } catch { return null; } // not on-chain — skip
+          return {...j, gigId:c.gigId, gigNumber:Number(c.gigNumber), amount:ethers.formatEther(c.amount),
+            status:STATUS_MAP[Number(c.status)]||j.status, proofIpfsHash:c.proofIpfsHash||j.proofIpfsHash};
+        } catch { return null; }
       }))).filter(Boolean);
       setGigs(enriched);
     } catch(e) { console.error(e); }
@@ -462,12 +471,10 @@ export default function CustomerJobs() {
       return e.approveWork(gigId);
     }, "Releasing SRT to freelancer...");
     if (r) {
-      // Sync status to MongoDB after on-chain confirmation
       await fetch(`${BACKEND}/api/jobs/${gigId}/status`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ status: "COMPLETED", txHash: r.hash }),
-      }).catch(() => {}); // non-fatal
+        method:"PATCH", headers:{"Content-Type":"application/json", Authorization:`Bearer ${token}`},
+        body: JSON.stringify({ status:"COMPLETED", txHash:r.hash }),
+      }).catch(()=>{});
       pushToast("💸 SRT released successfully!", "success", 6000);
       fetchData();
     }
@@ -479,103 +486,118 @@ export default function CustomerJobs() {
       return e.raiseDisputeAI(gigId);
     }, "Raising dispute (AI Tier 1)...");
     if (r) {
-      // Sync status to MongoDB after on-chain confirmation
       await fetch(`${BACKEND}/api/jobs/${gigId}/status`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ status: "DISPUTED_AI", txHash: r.hash }),
-      }).catch(() => {});
-      // Trigger AI resolution pipeline and notify when done
+        method:"PATCH", headers:{"Content-Type":"application/json", Authorization:`Bearer ${token}`},
+        body: JSON.stringify({ status:"DISPUTED_AI", txHash:r.hash }),
+      }).catch(()=>{});
       fetch(`${BACKEND}/api/dispute/${gigId}/ai-trigger`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      }).then(r => r.json()).then(d => {
+        method:"POST", headers:{"Content-Type":"application/json", Authorization:`Bearer ${token}`},
+      }).then(r=>r.json()).then(d=>{
         if (d.ruling) pushToast(`🤖 AI Verdict: ${d.ruling} (${Math.round((d.confidence||0)*100)}% confidence)`, "success", 10000);
         else if (d.error) pushToast(`❌ AI failed: ${d.error}`, "error", 10000);
-      }).catch(e => pushToast(`❌ AI trigger failed: ${e.message}`, "error", 8000));
+      }).catch(e=>pushToast(`❌ AI trigger failed: ${e.message}`, "error", 8000));
       pushToast("🤖 AI is reviewing your dispute", "info", 6000);
       fetchData();
     }
   };
 
   const displayGigs = tab === "active" ? activeGigs : completedGigs;
+  const disputedCount = gigs.filter(g => g.status?.startsWith("DISPUTED")).length;
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white">
-      {/* Ambient */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-1/3 right-1/4 w-96 h-96 bg-white/3 rounded-full blur-3xl"/>
-        <div className="absolute bottom-1/4 left-1/4 w-72 h-72 bg-white/2 rounded-full blur-3xl"/>
+    <div className="min-h-screen bg-background text-foreground">
+      {/* Ambient glows */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden -z-10">
+        <div className="absolute top-1/3 right-1/4 w-96 h-96 rounded-full bg-primary/5 blur-3xl animate-float-slow" />
+        <div className="absolute bottom-1/4 left-1/4 w-72 h-72 rounded-full bg-accent/4 blur-3xl" />
       </div>
 
       <Navbar />
 
-      <div className="relative z-10 max-w-7xl mx-auto px-4 pt-6 pb-16">
-        {/* ── HERO ──────────────────────────────────────────────────────── */}
-        <div className="relative rounded-3xl overflow-hidden mb-8 border border-white/8">
+      <main className="relative z-10 max-w-7xl mx-auto px-4 pt-6 pb-20">
+
+        {/* ── HERO ──────────────────────────────────────────────────── */}
+        <div className="grain relative rounded-3xl overflow-hidden mb-8 border border-hairline shadow-card">
           <div className={`transition-opacity duration-700 ${heroLoaded?"opacity-100":"opacity-0"}`}>
             <img src={clientImg} alt="Client dashboard" className="w-full h-52 sm:h-64 object-cover object-top"
               onLoad={()=>setHeroLoaded(true)}/>
           </div>
-          {!heroLoaded && <div className="w-full h-52 sm:h-64 bg-white/4 animate-pulse"/>}
-          <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/60 to-transparent"/>
+          {!heroLoaded && <div className="w-full h-52 sm:h-64 bg-surface-2 animate-pulse"/>}
+          <div className="absolute inset-0 bg-gradient-to-r from-background/95 via-background/70 to-transparent"/>
           <div className="absolute inset-0 flex flex-col justify-center px-8">
-            <p className="text-white/50 text-xs font-bold tracking-widest uppercase mb-2">🧑‍💼 Client Dashboard</p>
-            <h1 className="text-3xl sm:text-4xl font-black mb-2 text-white">
-              Hello, {user?.firstName || "Client"}
+            <p className="text-muted-foreground text-xs font-bold tracking-widest uppercase mb-2">🧑‍💼 Client Dashboard</p>
+            <h1 className="text-display text-3xl sm:text-4xl font-semibold mb-2 text-foreground">
+              Welcome back, <span className="bg-gold bg-clip-text text-transparent">{user?.firstName || "Client"}</span>
             </h1>
-            <p className="text-white/50 text-sm max-w-lg">Post gigs, lock SRT in escrow, review proof, and release payment — all in one place.</p>
+            <p className="text-muted-foreground text-sm max-w-lg">Post gigs, lock SRT in escrow, review proof, and release payment.</p>
             <button onClick={()=>setShowCreate(true)}
-              className="mt-4 inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-white hover:bg-gray-100 text-black font-bold text-sm transition-all hover:scale-105 shadow-xl w-fit">
-              ➕ Post New Gig
+              className="mt-5 bg-gold inline-flex items-center gap-2 px-6 py-3 rounded-full text-white font-semibold text-sm shadow-glow hover:opacity-90 transition-all hover:scale-105 w-fit">
+              + Post New Gig
             </button>
           </div>
         </div>
 
-        {/* ── STATS ─────────────────────────────────────────────────────── */}
+        {/* ── DISPUTE NOTICE ───────────────────────────────────────── */}
+        {disputedCount > 0 && (
+          <div className="glass flex flex-wrap items-center justify-between gap-3 rounded-2xl border-l-4 border-l-warning px-5 py-4 mb-6">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-full bg-[var(--warning-bg)] text-warning flex items-center justify-center text-sm">⚠️</div>
+              <div className="text-sm">
+                <p className="font-semibold text-foreground">{disputedCount} dispute{disputedCount>1?"s":""} awaiting your input</p>
+                <p className="text-muted-foreground text-xs">Respond within 48h or the case escalates to Kleros jurors.</p>
+              </div>
+            </div>
+            <button onClick={()=>setTab("active")}
+              className="text-sm font-semibold text-primary hover:opacity-80 transition-opacity">
+              Review →
+            </button>
+          </div>
+        )}
+
+        {/* ── STATS ────────────────────────────────────────────────── */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          {[
-            {label:"SRT Balance",      val:parseFloat(srtBal).toFixed(2), icon:"💎"},
-            {label:"Locked in Escrow", val:lockedSRT.toFixed(2),          icon:"🔒"},
-            {label:"Total Spent",      val:spentSRT.toFixed(2),           icon:"💸"},
-            {label:"Active Gigs",      val:activeGigs.length,             icon:"📋"},
-          ].map(({label,val,icon},i) => (
-            <StatCard key={i} label={label} val={val} icon={icon} delay={i*100}/>
-          ))}
+          <StatCard label="SRT Balance"      val={parseFloat(srtBal).toFixed(2)} icon="💎" delay={0}   tone="primary" />
+          <StatCard label="Locked in Escrow" val={lockedSRT.toFixed(2)}          icon="🔒" delay={80}  tone="warning" />
+          <StatCard label="Total Spent"      val={spentSRT.toFixed(2)}           icon="💸" delay={160} tone="default" />
+          <StatCard label="Active Gigs"      val={activeGigs.length}             icon="📋" delay={240} tone="success" />
         </div>
 
-        {/* ── TABS + ACTIONS ────────────────────────────────────────────── */}
-        <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
-          <div className="flex gap-2 bg-white/4 border border-white/8 rounded-2xl p-1.5 w-fit">
-            {[["active","📋 Active"], ["completed","✅ Completed"]].map(([v,l]) => (
+        {/* ── TABS ─────────────────────────────────────────────────── */}
+        <div className="glass sticky top-3 z-20 flex items-center justify-between rounded-2xl p-2 mb-6 shadow-soft">
+          <div className="flex gap-1">
+            {[["active","Active",activeGigs.length], ["completed","Completed",completedGigs.length]].map(([v,l,count]) => (
               <button key={v} onClick={()=>setTab(v)}
-                className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200
-                  ${tab===v ? "bg-white text-black shadow-lg" : "text-white/40 hover:text-white"}`}>
-                {l} {v==="active"?`(${activeGigs.length})`:`(${completedGigs.length})`}
+                className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all duration-200
+                  ${tab===v ? "bg-foreground text-background shadow-soft" : "text-muted-foreground hover:text-foreground hover:bg-surface-2"}`}>
+                {l}
+                <span className={`font-mono-tab rounded-md px-1.5 py-0.5 text-[10px]
+                  ${tab===v ? "bg-background/15 text-background" : "bg-surface-2 text-muted-foreground"}`}>
+                  {count}
+                </span>
               </button>
             ))}
           </div>
           <button onClick={()=>fetchData()}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/6 hover:bg-white/10 text-white/50 hover:text-white text-xs font-semibold transition-all border border-white/8">
+            className="glass inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-muted-foreground hover:text-foreground transition-all">
             🔄 Refresh
           </button>
         </div>
 
-        {/* ── GIGS ──────────────────────────────────────────────────────── */}
+        {/* ── GIGS ─────────────────────────────────────────────────── */}
         {loading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {[1,2,3].map(i=><SkeletonGigCard key={i}/>)}
           </div>
         ) : displayGigs.length === 0 ? (
-          <div className="rounded-2xl border border-white/8 bg-white/4 p-14 text-center">
-            <p className="text-6xl mb-4 opacity-30">📋</p>
-            <p className="text-white/60 text-lg font-semibold mb-2">
+          <div className="glass rounded-3xl py-20 text-center border border-hairline">
+            <p className="text-5xl mb-4 opacity-30">📋</p>
+            <h3 className="text-foreground text-lg font-semibold mb-2">
               {tab==="active" ? "No active gigs yet" : "No completed gigs yet"}
-            </p>
-            <p className="text-white/30 text-sm mb-6">Post your first gig and find the perfect freelancer.</p>
+            </h3>
+            <p className="text-muted-foreground text-sm mb-6">Post your first gig and find the perfect freelancer.</p>
             <button onClick={()=>setShowCreate(true)}
-              className="px-6 py-3 rounded-xl bg-white hover:bg-gray-100 text-black font-semibold text-sm hover:scale-105 transition-all shadow-lg">
-              ➕ Post a Gig →
+              className="bg-gold inline-flex items-center gap-2 px-6 py-3 rounded-full text-white font-semibold text-sm shadow-glow hover:opacity-90 transition-all">
+              + Post a Gig
             </button>
           </div>
         ) : (
@@ -588,26 +610,11 @@ export default function CustomerJobs() {
             ))}
           </div>
         )}
-      </div>
+      </main>
 
-      {/* Create modal */}
       {showCreate && (
         <CreateGigModal srtBalance={srtBal} user={user} onClose={()=>setShowCreate(false)} onCreated={fetchData}/>
       )}
-    </div>
-  );
-}
-
-// ─── Stat Card ────────────────────────────────────────────────────────────────
-function StatCard({ label, val, icon, delay }) {
-  const [ref, vis] = useFade(delay);
-  return (
-    <div ref={ref} style={{transitionDelay:`${delay}ms`}}
-      className={`rounded-2xl border border-white/10 bg-white/5 p-5 transition-all duration-700 hover:scale-[1.02] hover:bg-white/8
-        ${vis?"opacity-100 translate-y-0":"opacity-0 translate-y-4"}`}>
-      <p className="text-2xl mb-2">{icon}</p>
-      <p className="text-white font-black text-2xl"><Counter target={parseFloat(val)}/> SRT</p>
-      <p className="text-white/40 text-xs mt-1">{label}</p>
     </div>
   );
 }
