@@ -158,7 +158,7 @@ export function GigProvider({ children }) {
             const uid = localStorage.getItem("userId");
             const tok = localStorage.getItem("token");
             if (uid && tok) {
-                fetch(`${import.meta.env.VITE_BACKEND_URL || "http://localhost:5010"}/api/users/${uid}/wallet`, {
+                fetch(`${import.meta.env.VITE_BACKEND_URL ?? "http://localhost:5010"}/api/users/${uid}/wallet`, {
                     method: "PATCH",
                     headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
                     body: JSON.stringify({ walletAddress: address })

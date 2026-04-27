@@ -3,7 +3,7 @@ import { ethers } from 'ethers';
 import { pushToast } from '../context/GigContext';
 import './WalletButton.css';
 
-const BACKEND = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5010';
+const BACKEND = import.meta.env.VITE_BACKEND_URL ?? 'http://localhost:5010';
 
 function WalletButton() {
     const [account, setAccount] = useState(null);

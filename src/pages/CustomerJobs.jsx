@@ -18,7 +18,7 @@ import { SkeletonGigCard } from "../components/Skeleton";
 import Navbar from "../navbar";
 import clientImg from "../assets/client_dashboard_hero.png";
 
-const BACKEND     = import.meta.env.VITE_BACKEND_URL || "http://localhost:5010";
+const BACKEND     = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:5010";
 const ESCROW_ADDR = (import.meta.env.VITE_ESCROW_CONTRACT_ADDRESS || "0x8eFa974E68A449B25Db77B73841dc14921A98Ba5").trim();
 const TOKEN_ADDR  = (import.meta.env.VITE_TOKEN_CONTRACT_ADDRESS  || "0x5D3976fc3F92174da8F851a12a5b0056CC6783A0").trim();
 const RPC_URL     = import.meta.env.VITE_RPC_URL || "https://rpc.sepolia.org";

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import Navbar from "./navbar";
 import axios from "axios";
 
-const API = import.meta.env.VITE_BACKEND_URL || "http://localhost:5010";
+const API = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:5010";
 
 const CATEGORIES = ["Web Development", "Graphic Design", "Marketing", "Writing", "Video Editing", "Data Analysis", "UI/UX Design", "Social Media"];
 

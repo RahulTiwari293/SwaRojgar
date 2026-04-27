@@ -5,7 +5,7 @@ import { SkeletonDisputePanel } from "./components/Skeleton";
 import Navbar from "./navbar";
 
 const ESCROW_ADDRESS = (import.meta.env.VITE_ESCROW_CONTRACT_ADDRESS || "0x8eFa974E68A449B25Db77B73841dc14921A98Ba5").trim();
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:5010";
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:5010";
 
 const ESCROW_ABI = [
     "function raiseDisputeAI(string gigId) external",

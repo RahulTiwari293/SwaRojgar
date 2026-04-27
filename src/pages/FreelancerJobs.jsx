@@ -18,7 +18,7 @@ import { SkeletonGigCard } from "../components/Skeleton";
 import Navbar from "../navbar";
 import freelancerImg from "../assets/freelancer_dashboard_hero.png";
 
-const BACKEND     = import.meta.env.VITE_BACKEND_URL || "http://localhost:5010";
+const BACKEND     = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:5010";
 const RPC_URL     = import.meta.env.VITE_RPC_URL || "https://rpc.sepolia.org";
 const readProvider = new ethers.JsonRpcProvider(RPC_URL);
 const ESCROW_ABI = [

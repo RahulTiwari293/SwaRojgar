@@ -12,7 +12,7 @@ import React, { useEffect, useState } from "react";
 import { useAuth } from "@clerk/clerk-react";
 import { useNavigate } from "react-router-dom";
 
-const BACKEND = import.meta.env.VITE_BACKEND_URL || "http://localhost:5010";
+const BACKEND = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:5010";
 
 export default function AuthCallback() {
   const { getToken, isLoaded } = useAuth();

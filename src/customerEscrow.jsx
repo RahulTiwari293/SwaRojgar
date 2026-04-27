@@ -39,7 +39,7 @@ const ESCROW_ABI = [
 
 const TOKEN_ADDRESS  = import.meta.env.VITE_TOKEN_CONTRACT_ADDRESS  || "0x5D3976fc3F92174da8F851a12a5b0056CC6783A0";
 const ESCROW_ADDRESS = import.meta.env.VITE_ESCROW_CONTRACT_ADDRESS || "0x8eFa974E68A449B25Db77B73841dc14921A98Ba5";
-const BACKEND_URL    = import.meta.env.VITE_BACKEND_URL || "http://localhost:5010";
+const BACKEND_URL    = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:5010";
 
 // Gig status labels + colours
 const STATUS_META = {

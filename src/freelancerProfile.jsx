@@ -3,7 +3,7 @@ import Navbar from "./navbar";
 import ProfilePhotoUpload from "./components/ProfilePhotoUpload";
 import axios from "axios";
 
-const API = import.meta.env.VITE_BACKEND_URL || "http://localhost:5010";
+const API = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:5010";
 
 export default function FreelancerProfile() {
   const [userData, setUserData] = useState(null);

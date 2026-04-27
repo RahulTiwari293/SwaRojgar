@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import CreatePostModal from "./CreatePostModal";
 
-const API = import.meta.env.VITE_BACKEND_URL || "http://localhost:5010";
+const API = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:5010";
 
 function Postbar() {
   const [posts, setPosts] = useState([]);

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "./navbar.jsx";
 
-const API_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:5010";
+const API_URL = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:5010";
 
 /* ─── Dot grid background ─────────────────────────────────────────────────── */
 function DotBg({ light = false, className = "" }) {

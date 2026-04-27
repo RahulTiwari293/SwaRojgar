@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 
-const API = import.meta.env.VITE_BACKEND_URL || "http://localhost:5010";
+const API = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:5010";
 
 function DashboardWidgets() {
     const [userType, setUserType] = useState(null);

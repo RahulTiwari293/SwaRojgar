@@ -7,7 +7,7 @@ import { useTheme } from './context/ThemeContext';
 import { useClerk } from '@clerk/clerk-react';
 import axios from 'axios';
 
-const API = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5010';
+const API = import.meta.env.VITE_BACKEND_URL ?? 'http://localhost:5010';
 
 function Navbar() {
   const navigate  = useNavigate();

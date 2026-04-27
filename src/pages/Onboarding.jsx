@@ -11,7 +11,7 @@ import { useAuth } from "@clerk/clerk-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import logo from "../assets/logo.png";
 
-const BACKEND = import.meta.env.VITE_BACKEND_URL || "http://localhost:5010";
+const BACKEND = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:5010";
 
 export default function Onboarding() {
   const { getToken } = useAuth();
